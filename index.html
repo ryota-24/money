@@ -79,7 +79,7 @@ html, body {
   position: fixed;
   inset: 0;
   z-index: 9999;
-  background: #0F172A;
+  background: #020409;
   color: #FFFFFF;
   display: flex;
   flex-direction: column;
@@ -97,21 +97,20 @@ html, body {
 .lock-actions { margin-top: 24px; display: flex; gap: 12px; }
 .lock-link { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: #CBD5E1; font-size: 12px; padding: 8px 14px; border-radius: 99px; cursor: pointer; }
 
-/* JARVIS風パーティクル・ロック */
+/* 宇宙パーティクル・ロック（銀河ジェスチャー） */
 .lock-overlay { overflow: hidden; transition: background 0.25s; }
 .lock-overlay.flash-err { background: #2A0F16; }
 .lock-overlay > *:not(#particleCanvas) { position: relative; z-index: 1; }
 #particleCanvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
-#gestureStage { display: flex; flex-direction: column; align-items: center; }
-.g-chips { display: flex; gap: 8px; min-height: 36px; align-items: center; justify-content: center; margin-bottom: 10px; flex-wrap: wrap; max-width: 320px; }
-.g-chip { width: 34px; height: 34px; border-radius: 50%; border: 1px solid rgba(125, 211, 252, 0.45); color: #7DD3FC; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; background: rgba(56, 189, 248, 0.07); }
-.g-chip.done { background: rgba(56, 189, 248, 0.28); color: #F0F9FF; box-shadow: 0 0 14px rgba(56, 189, 248, 0.5); border-color: rgba(125, 211, 252, 0.9); }
-.g-chip.pending { opacity: 0.35; }
-.g-chip.entered { background: rgba(56, 189, 248, 0.18); color: #E0F2FE; }
-.g-pad { width: min(78vw, 300px); height: 280px; border-radius: 24px; border: 1px solid rgba(125, 211, 252, 0.22); background: radial-gradient(circle at 50% 46%, rgba(56, 189, 248, 0.10), rgba(56, 189, 248, 0.02) 62%, transparent 75%); display: flex; align-items: flex-end; justify-content: center; padding-bottom: 16px; touch-action: none; }
-.g-pad-hint { font-size: 11px; letter-spacing: 0.14em; color: rgba(148, 197, 255, 0.75); font-weight: 700; }
+#spinStage { display: flex; flex-direction: column; align-items: center; width: min(88vw, 380px); touch-action: none; }
+.spin-space { width: 100%; height: min(50vh, 370px); }
+.s-dots { display: flex; gap: 10px; min-height: 13px; align-items: center; justify-content: center; margin-top: 4px; }
+.s-dot { width: 11px; height: 11px; border-radius: 50%; border: 1px solid rgba(165, 243, 252, 0.55); background: transparent; transition: background 0.2s, box-shadow 0.2s; }
+.s-dot.on { background: #A5F3FC; box-shadow: 0 0 12px rgba(103, 232, 249, 0.9); border-color: #CFFAFE; }
+.s-dot.dim { opacity: 0.35; }
+.s-steps { font-size: 12px; color: #A5F3FC; min-height: 18px; text-align: center; margin-top: 8px; letter-spacing: 0.04em; }
 @keyframes lockShake { 0%, 100% { transform: translateX(0); } 20% { transform: translateX(-10px); } 40% { transform: translateX(10px); } 60% { transform: translateX(-6px); } 80% { transform: translateX(6px); } }
-.lock-overlay.shake #gestureStage, .lock-overlay.shake #patternCanvas { animation: lockShake 0.4s ease; }
+.lock-overlay.shake #spinStage, .lock-overlay.shake #patternCanvas { animation: lockShake 0.4s ease; }
 .gesture-prompt { position: fixed; left: 16px; right: 16px; bottom: calc(100px + env(safe-area-inset-bottom, 0px)); z-index: 9000; background: #0F172A; color: #E2E8F0; border: 1px solid rgba(125, 211, 252, 0.45); border-radius: 16px; padding: 14px 16px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45); }
 
 /* ヘッダー */
@@ -481,7 +480,7 @@ details.acc[open] summary { border-bottom: 1px solid var(--line); }
 </head>
 <body>
 
-<!-- ロック画面（パーティクル＋ジェスチャー／パターン） -->
+<!-- ロック画面（銀河ジェスチャー／パターン） -->
 <div class="lock-overlay" id="lockOverlay">
   <canvas id="particleCanvas"></canvas>
   <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#60A5FA" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
@@ -490,31 +489,30 @@ details.acc[open] summary { border-bottom: 1px solid var(--line); }
   <div id="patternStage">
     <canvas id="patternCanvas" width="280" height="280"></canvas>
   </div>
-  <div id="gestureStage" hidden>
-    <div class="g-chips" id="gestureChips"></div>
-    <div class="g-pad" id="gesturePad">
-      <span class="g-pad-hint">SWIPE</span>
-    </div>
+  <div id="spinStage" hidden>
+    <div class="spin-space" id="spinSpace"></div>
+    <div class="s-dots" id="spinDots"></div>
+    <div class="s-steps" id="spinSteps"></div>
     <div class="lock-actions">
-      <button type="button" class="lock-link" id="gestureClearBtn" hidden>クリア</button>
-      <button type="button" class="lock-link" id="gestureDoneBtn" hidden>この内容で確定</button>
+      <button type="button" class="lock-link" id="spinClearBtn" hidden>クリア</button>
+      <button type="button" class="lock-link" id="spinDoneBtn" hidden>この内容で確定</button>
     </div>
   </div>
   <div class="lock-actions">
     <button type="button" class="lock-link" id="lockCancelBtn" hidden>キャンセル</button>
     <button type="button" class="lock-link" id="lockResetBtn">パターンをリセット</button>
     <button type="button" class="lock-link" id="lockPatternBtn" hidden>パターンで開く</button>
-    <button type="button" class="lock-link" id="lockGestureBtn" hidden>ジェスチャーで開く</button>
+    <button type="button" class="lock-link" id="lockSpinBtn" hidden>銀河ジェスチャーで開く</button>
   </div>
 </div>
 
-<!-- ジェスチャー登録の提案（パターン解除後に表示） -->
-<div class="gesture-prompt" id="gesturePrompt" hidden>
+<!-- 銀河ジェスチャー登録の提案（パターン解除後に表示） -->
+<div class="gesture-prompt" id="spinPrompt" hidden>
   <div style="font-weight:800;margin-bottom:4px">新しい解除方法があります</div>
-  <div style="font-size:12px;color:#94A3B8">粒子の流れをなぞる「スワイプジェスチャー解除」を登録できます。次回からスワイプの組み合わせで開けます。</div>
+  <div style="font-size:12px;color:#94A3B8">銀河を指で回して開く「銀河ジェスチャー」を登録できます。回転の組み合わせが、あなただけの鍵になります。</div>
   <div style="display:flex;gap:10px;margin-top:10px">
-    <button type="button" class="btn" id="gesturePromptYes" style="flex:1">登録する</button>
-    <button type="button" class="btn ghost" id="gesturePromptNo" style="flex:1;background:rgba(255,255,255,0.08);color:#E2E8F0;border-color:rgba(255,255,255,0.25)">あとで</button>
+    <button type="button" class="btn" id="spinPromptYes" style="flex:1">登録する</button>
+    <button type="button" class="btn ghost" id="spinPromptNo" style="flex:1;background:rgba(255,255,255,0.08);color:#E2E8F0;border-color:rgba(255,255,255,0.25)">あとで</button>
   </div>
 </div>
 
@@ -817,12 +815,12 @@ details.acc[open] summary { border-bottom: 1px solid var(--line); }
           <button type="button" class="btn ghost" id="togglePatternBtn">ロックをオフ</button>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-          <span class="sub" style="font-weight:700">スワイプジェスチャー解除</span>
-          <span class="badge est" id="gestureStatusBadge">未登録</span>
+          <span class="sub" style="font-weight:700">銀河ジェスチャー</span>
+          <span class="badge est" id="spinStatusBadge">未登録</span>
         </div>
         <div class="grid2" style="margin-bottom:14px">
-          <button type="button" class="btn ghost" id="changeGestureBtn">ジェスチャー登録・変更</button>
-          <button type="button" class="btn ghost" id="deleteGestureBtn">ジェスチャー削除</button>
+          <button type="button" class="btn ghost" id="changeSpinBtn">銀河ジェスチャー登録・変更</button>
+          <button type="button" class="btn ghost" id="deleteSpinBtn">銀河ジェスチャー削除</button>
         </div>
         <div class="sub" style="font-weight:700;margin-bottom:6px">全データのJSONバックアップ・復元</div>
         <div class="grid2">
@@ -1026,11 +1024,11 @@ document.addEventListener('DOMContentLoaded', function() {
   var legacyPattern = lockState.pattern || '';
   if ('pattern' in lockState) delete lockState.pattern;
   function hasPattern() { return !!(lockState.patternHash || legacyPattern); }
-  // スワイプジェスチャー：平文は保存せず、接頭辞ごとのハッシュ配列だけを保持する
-  function hasGesture() { return !!(lockState.gestureHashes && lockState.gestureHashes.length >= 3); }
-  function gestureLen() { return hasGesture() ? lockState.gestureHashes.length : 0; }
-  function hasAnyLock() { return hasPattern() || hasGesture(); }
-  function hashGesturePrefix(dirs) { return hashPattern('G:' + dirs.join(',')); }
+  // 銀河ジェスチャー（回転の組み合わせ）：平文は保存せず、接頭辞ごとのハッシュ配列だけを保持する
+  function hasSpin() { return !!(lockState.spinHashes && lockState.spinHashes.length >= 2); }
+  function spinLen() { return hasSpin() ? lockState.spinHashes.length : 0; }
+  function hasAnyLock() { return hasPattern() || hasSpin(); }
+  function hashSpinPrefix(steps) { return hashPattern('S:' + steps.join(',')); }
   function hashPattern(code) {
     var msg = 'kakei-lock:' + code;
     if (window.crypto && crypto.subtle && crypto.subtle.digest) {
@@ -1115,14 +1113,14 @@ document.addEventListener('DOMContentLoaded', function() {
     stopParticles();
   }
 
-  // ロック解除に成功した共通処理。パターンで開いた場合はジェスチャー登録を提案する
+  // ロック解除に成功した共通処理。パターンで開いた場合は銀河ジェスチャー登録を提案する
   function onAppUnlocked(via) {
     hideLockOverlay();
-    if (via === 'pattern' && !hasGesture()) showGesturePrompt();
+    if (via === 'pattern' && !hasSpin()) showSpinPrompt();
   }
 
-  function showGesturePrompt() {
-    var p = $('gesturePrompt');
+  function showSpinPrompt() {
+    var p = $('spinPrompt');
     if (p) p.hidden = false;
   }
 
@@ -1157,7 +1155,7 @@ document.addEventListener('DOMContentLoaded', function() {
       if (code === tempPattern) {
         hashPattern(code).then(function(hx) { lockState.patternHash = hx; legacyPattern = ''; lockState.enabled = true; saveLockState(); });
         lineStatus = 'ok'; drawPattern();
-        setTimeout(function() { hideLockOverlay(); selectedDots = []; lineStatus = 'normal'; showToast('パターンを登録しました'); if (!hasGesture()) showGesturePrompt(); }, 300);
+        setTimeout(function() { hideLockOverlay(); selectedDots = []; lineStatus = 'normal'; showToast('パターンを登録しました'); if (!hasSpin()) showSpinPrompt(); }, 300);
       } else {
         lineStatus = 'error'; lockSub.className = 'lock-sub err'; lockSub.textContent = '一致しません。最初からやり直してください'; drawPattern();
         setTimeout(function() { openLockScreen('setup1', canCancelSetup); }, 700);
@@ -1188,239 +1186,375 @@ document.addEventListener('DOMContentLoaded', function() {
       if (lockState.enabled && hasAnyLock()) { b.textContent = '有効'; b.className = 'badge fix'; t.textContent = 'ロックをオフ'; }
       else { b.textContent = 'オフ'; b.className = 'badge est'; t.textContent = 'ロックをオン'; }
     }
-    var gb = $('gestureStatusBadge'), gd = $('deleteGestureBtn');
+    var gb = $('spinStatusBadge'), gd = $('deleteSpinBtn');
     if (gb) {
-      if (hasGesture()) { gb.textContent = '登録済み'; gb.className = 'badge fix'; }
+      if (hasSpin()) { gb.textContent = '登録済み'; gb.className = 'badge fix'; }
       else { gb.textContent = '未登録'; gb.className = 'badge est'; }
     }
-    if (gd) gd.hidden = !hasGesture();
+    if (gd) gd.hidden = !hasSpin();
   }
 
   // ==========================================
-  // JARVIS風パーティクル＋スワイプジェスチャーロック
   // ==========================================
-  var DIR_ARROW = { U: '↑', D: '↓', L: '←', R: '→' };
-  var DIR_VEC = { U: [0, -1], D: [0, 1], L: [-1, 0], R: [1, 0] };
-  var lockView = 'pattern';           // 'pattern' | 'gesture'
-  var gMode = 'unlock';               // 'unlock' | 'enroll1' | 'enroll2'
-  var gProgress = [];                 // 入力済み方向
-  var gTempSeq = null;                // 登録1回目の入力（メモリ上のみ）
-  var gBusy = false;                  // ハッシュ照合中フラグ
-  var gestureStage = $('gestureStage'), patternStage = $('patternStage');
-  var gestureChips = $('gestureChips'), gesturePad = $('gesturePad');
-  var gestureDoneBtn = $('gestureDoneBtn'), gestureClearBtn = $('gestureClearBtn');
-  var lockPatternBtn = $('lockPatternBtn'), lockGestureBtn = $('lockGestureBtn');
+  // 銀河ジェスチャー（回転の組み合わせで解除）
+  // ==========================================
+  var lockView = 'pattern';           // 'pattern' | 'spin'
+  var sMode = 'unlock';               // 'unlock' | 'enroll1' | 'enroll2'
+  var sProgress = [];                 // 入力済みステップ（'CW1' / 'CCW2' などのトークン）
+  var sTempSeq = null;                // 登録1回目の入力（メモリ上のみ）
+  var sBusy = false;                  // ハッシュ照合中フラグ
+  var sUnlocked = false;              // 解除演出中フラグ
+  var spinStage = $('spinStage'), patternStage = $('patternStage');
+  var spinDots = $('spinDots'), spinSteps = $('spinSteps');
+  var spinDoneBtn = $('spinDoneBtn'), spinClearBtn = $('spinClearBtn');
+  var lockPatternBtn = $('lockPatternBtn'), lockSpinBtn = $('lockSpinBtn');
+
+  var SPIN_MIN_DEG = 150;             // ステップとして認める最小回転量
+  var SPIN_FULL_DEG = 270;            // これを超えたら「1回転」バケット
+  var SPIN_REV_DEG = 30;              // 逆回転の許容量（これを超えたらステップ確定）
+  // 純粋関数：1回のドラッグで得たポインタ角度列（ラジアン、atan2の生値）から
+  // ステップ列（'CW1' = 時計回り半回転 / 'CW2' = 時計回り1回転 / 'CCW1' / 'CCW2'）を抽出する。
+  // 画面座標系（y軸下向き）では角度の増加が時計回りに見える。
+  function extractSpinSteps(angles) {
+    var steps = [];
+    if (!angles || angles.length < 2) return steps;
+    var runDir = 0, runTotal = 0, rev = 0;
+    function finalize() {
+      if (runDir !== 0) {
+        var deg = runTotal * 180 / Math.PI;
+        if (deg >= SPIN_MIN_DEG) steps.push((runDir > 0 ? 'CW' : 'CCW') + (deg > SPIN_FULL_DEG ? '2' : '1'));
+      }
+      runDir = 0; runTotal = 0; rev = 0;
+    }
+    var prev = angles[0];
+    for (var i = 1; i < angles.length; i++) {
+      var d = angles[i] - prev; prev = angles[i];
+      while (d > Math.PI) d -= Math.PI * 2;
+      while (d < -Math.PI) d += Math.PI * 2;
+      if (d === 0) continue;
+      var s = d > 0 ? 1 : -1, ad = Math.abs(d);
+      if (runDir === 0) { runDir = s; runTotal = ad; continue; }
+      if (s === runDir) { runTotal += ad; rev = 0; }
+      else {
+        rev += ad;
+        if (rev * 180 / Math.PI > SPIN_REV_DEG) {
+          var nd = -runDir, nt = rev;
+          finalize();
+          runDir = nd; runTotal = nt; rev = 0;
+        }
+      }
+    }
+    finalize();
+    return steps;
+  }
+  window.__extractSpinSteps = extractSpinSteps;
+
+  function spinStepLabel(tok) { return (tok.slice(0, 2) === 'CW' ? '↻' : '↺') + (tok.slice(-1) === '2' ? ' 1回転' : ' 半回転'); }
 
   function showLockView(view) {
     lockView = view;
     patternStage.hidden = (view !== 'pattern');
-    gestureStage.hidden = (view !== 'gesture');
-    lockPatternBtn.hidden = !(view === 'gesture' && hasPattern());
-    lockGestureBtn.hidden = !(view === 'pattern' && hasGesture());
+    spinStage.hidden = (view !== 'spin');
+    lockPatternBtn.hidden = !(view === 'spin' && hasPattern());
+    lockSpinBtn.hidden = !(view === 'pattern' && hasSpin());
     lockResetBtn.hidden = !(view === 'pattern' && lockMode === 'unlock');
   }
 
-  function renderGestureChips() {
-    gestureChips.innerHTML = '';
-    var total = (gMode === 'unlock') ? gestureLen() : Math.max(gProgress.length, 3);
-    if (gMode === 'enroll2' && gTempSeq) total = gTempSeq.length;
+  function renderSpinUI() {
+    spinDots.innerHTML = '';
+    var total = (sMode === 'unlock') ? spinLen() : (sMode === 'enroll2' && sTempSeq ? sTempSeq.length : Math.max(sProgress.length, 2));
     for (var i = 0; i < total; i++) {
-      var chip = el('div', 'g-chip');
-      if (i < gProgress.length) {
-        chip.textContent = DIR_ARROW[gProgress[i]];
-        chip.classList.add(gMode === 'unlock' ? 'done' : 'entered');
-      } else {
-        chip.textContent = '・';
-        chip.classList.add('pending');
-      }
-      gestureChips.appendChild(chip);
+      var dot = el('div', 's-dot');
+      dot.classList.add(i < sProgress.length ? 'on' : 'dim');
+      spinDots.appendChild(dot);
     }
-    if (gMode === 'unlock') {
-      gestureDoneBtn.hidden = true;
-      gestureClearBtn.hidden = true;
+    spinSteps.textContent = sProgress.map(spinStepLabel).join(' → ');
+    if (sMode === 'unlock') {
+      spinDoneBtn.hidden = true;
+      spinClearBtn.hidden = true;
     } else {
-      gestureDoneBtn.hidden = !(gMode === 'enroll1' && gProgress.length >= 3);
-      gestureClearBtn.hidden = !(gProgress.length > 0);
+      spinDoneBtn.hidden = !(sMode === 'enroll1' && sProgress.length >= 2);
+      spinClearBtn.hidden = !(sProgress.length > 0);
     }
   }
 
-  function openGestureUnlock(allowCancel) {
-    gMode = 'unlock'; gProgress = []; gTempSeq = null; gBusy = false;
+  function openSpinUnlock(allowCancel) {
+    sMode = 'unlock'; sProgress = []; sTempSeq = null; sBusy = false; sUnlocked = false;
     canCancelSetup = !!allowCancel;
     lockCancelBtn.hidden = !allowCancel;
-    lockTitle.textContent = 'ジェスチャーで解除';
+    lockTitle.textContent = '銀河ジェスチャーで解除';
     lockSub.className = 'lock-sub';
-    lockSub.textContent = '登録したスワイプを入力してください';
+    lockSub.textContent = '銀河を回して、登録した組み合わせを入力してください';
     lockOverlay.hidden = false;
-    showLockView('gesture');
-    renderGestureChips();
+    showLockView('spin');
+    renderSpinUI();
     startParticles();
+    if (pCtx) sizeParticles();
   }
 
-  function openGestureEnroll(allowCancel) {
-    gMode = 'enroll1'; gProgress = []; gTempSeq = null; gBusy = false;
+  function openSpinEnroll(allowCancel) {
+    sMode = 'enroll1'; sProgress = []; sTempSeq = null; sBusy = false; sUnlocked = false;
     canCancelSetup = !!allowCancel;
     lockCancelBtn.hidden = !allowCancel;
-    lockTitle.textContent = hasGesture() ? 'ジェスチャーを変更' : 'ジェスチャーを登録';
+    lockTitle.textContent = hasSpin() ? '銀河ジェスチャーを変更' : '銀河ジェスチャーを登録';
     lockSub.className = 'lock-sub';
-    lockSub.textContent = 'スワイプを3つ以上組み合わせてください（例：↑→↑）';
+    lockSub.textContent = '銀河を回して、あなたの組み合わせを入力してください（2〜4手）';
     lockOverlay.hidden = false;
-    showLockView('gesture');
-    renderGestureChips();
+    showLockView('spin');
+    renderSpinUI();
     startParticles();
+    if (pCtx) sizeParticles();
   }
 
-  function gestureError(msg) {
+  function spinError(msg) {
     lockSub.className = 'lock-sub err';
     lockSub.textContent = msg;
     lockOverlay.classList.remove('shake'); void lockOverlay.offsetWidth; lockOverlay.classList.add('shake');
     lockOverlay.classList.add('flash-err');
-    flashParticles();
+    flashGalaxy();
     setTimeout(function() { lockOverlay.classList.remove('flash-err'); lockOverlay.classList.remove('shake'); }, 450);
-    gProgress = [];
-    renderGestureChips();
+    sProgress = [];
+    renderSpinUI();
   }
 
-  function gestureUnlockSuccess() {
+  function spinUnlockSuccess() {
+    sUnlocked = true;
     lockSub.className = 'lock-sub ok';
     lockSub.textContent = '解除しました';
-    burstParticles();
-    setTimeout(function() { onAppUnlocked('gesture'); }, 450);
+    warpGalaxy();
+    setTimeout(function() { onAppUnlocked('spin'); }, 580);
   }
 
-  function finalizeGestureEnroll() {
-    var seq = gTempSeq.slice(), hashes = [], i = 0;
+  function finalizeSpinEnroll() {
+    var seq = sTempSeq.slice(), hashes = [], i = 0;
     function next() {
       if (i >= seq.length) {
-        lockState.gestureHashes = hashes;
+        lockState.spinHashes = hashes;
+        delete lockState.gestureHashes; // 旧スワイプ方式のハッシュは破棄する
         lockState.enabled = true;
         saveLockState();
         hideLockOverlay();
-        showToast('ジェスチャーを登録しました');
+        showToast('銀河ジェスチャーを登録しました');
         return;
       }
-      hashGesturePrefix(seq.slice(0, i + 1)).then(function(hx) { hashes.push(hx); i++; next(); });
+      hashSpinPrefix(seq.slice(0, i + 1)).then(function(hx) { hashes.push(hx); i++; next(); });
     }
     next();
   }
 
-  function handleSwipe(dir) {
-    if (gBusy || lockOverlay.hidden || lockView !== 'gesture') return;
-    var v = DIR_VEC[dir];
-    surgeParticles(v[0], v[1]);
-    if (gMode === 'unlock') {
-      gProgress.push(dir);
-      renderGestureChips();
-      gBusy = true;
-      hashGesturePrefix(gProgress).then(function(hx) {
-        gBusy = false;
-        if (hx === lockState.gestureHashes[gProgress.length - 1]) {
-          if (gProgress.length >= gestureLen()) gestureUnlockSuccess();
-          else { lockSub.className = 'lock-sub'; lockSub.textContent = 'あと ' + (gestureLen() - gProgress.length) + ' スワイプ'; }
+  function handleSpinStep(tok, done) {
+    if (sUnlocked || lockOverlay.hidden || lockView !== 'spin') return;
+    if (sMode === 'unlock') {
+      if (sProgress.length >= spinLen()) return;
+      sProgress.push(tok);
+      renderSpinUI();
+      sBusy = true;
+      hashSpinPrefix(sProgress).then(function(hx) {
+        sBusy = false;
+        if (sUnlocked) return;
+        if (hx === lockState.spinHashes[sProgress.length - 1]) {
+          flareGalaxy(tok.slice(0, 2) === 'CW' ? 1 : -1);
+          if (sProgress.length >= spinLen()) { spinUnlockSuccess(); return; }
+          lockSub.className = 'lock-sub';
+          lockSub.textContent = 'あと ' + (spinLen() - sProgress.length) + ' 手';
+          if (done) done();
         } else {
-          gestureError('ジェスチャーが違います');
+          spinError('組み合わせが違います');
         }
       });
-    } else if (gMode === 'enroll1') {
-      if (gProgress.length < 12) { gProgress.push(dir); renderGestureChips(); }
-    } else if (gMode === 'enroll2') {
-      gProgress.push(dir);
-      renderGestureChips();
-      if (gProgress.length >= gTempSeq.length) {
-        var same = gProgress.length === gTempSeq.length && gProgress.every(function(d, i) { return d === gTempSeq[i]; });
-        if (same) finalizeGestureEnroll();
+    } else if (sMode === 'enroll1') {
+      if (sProgress.length < 4) { sProgress.push(tok); renderSpinUI(); }
+      if (done) done();
+    } else if (sMode === 'enroll2') {
+      sProgress.push(tok);
+      renderSpinUI();
+      if (sProgress.length >= sTempSeq.length) {
+        var same = sProgress.length === sTempSeq.length && sProgress.every(function(t, j) { return t === sTempSeq[j]; });
+        if (same) finalizeSpinEnroll();
         else {
-          gMode = 'enroll1'; gTempSeq = null;
-          lockTitle.textContent = 'ジェスチャーを登録';
-          gestureError('一致しません。最初からやり直してください');
+          sMode = 'enroll1'; sTempSeq = null;
+          lockTitle.textContent = '銀河ジェスチャーを登録';
+          spinError('一致しません。最初からやり直してください');
         }
+        return;
       }
+      if (done) done();
     }
   }
 
-  gestureDoneBtn.addEventListener('click', function() {
-    if (gMode !== 'enroll1' || gProgress.length < 3) return;
-    gTempSeq = gProgress.slice();
-    gProgress = [];
-    gMode = 'enroll2';
+  // 1回のドラッグから抽出したステップ列を順番に処理する
+  function processSpinSteps(tokens) {
+    var i = 0;
+    function next() {
+      if (i >= tokens.length) return;
+      handleSpinStep(tokens[i++], next);
+    }
+    next();
+  }
+
+  spinDoneBtn.addEventListener('click', function() {
+    if (sMode !== 'enroll1' || sProgress.length < 2) return;
+    sTempSeq = sProgress.slice();
+    sProgress = [];
+    sMode = 'enroll2';
     lockTitle.textContent = '確認のためもう一度';
     lockSub.className = 'lock-sub';
-    lockSub.textContent = '同じジェスチャーをもう一度入力してください';
-    renderGestureChips();
+    lockSub.textContent = '同じ組み合わせをもう一度入力してください';
+    renderSpinUI();
   });
-  gestureClearBtn.addEventListener('click', function() { gProgress = []; renderGestureChips(); });
+  spinClearBtn.addEventListener('click', function() { sProgress = []; renderSpinUI(); });
   lockPatternBtn.addEventListener('click', function() { openLockScreen('unlock', canCancelSetup); });
-  lockGestureBtn.addEventListener('click', function() { openGestureUnlock(canCancelSetup); });
-  $('gesturePromptYes').addEventListener('click', function() { $('gesturePrompt').hidden = true; openGestureEnroll(true); });
-  $('gesturePromptNo').addEventListener('click', function() { $('gesturePrompt').hidden = true; });
+  lockSpinBtn.addEventListener('click', function() { openSpinUnlock(canCancelSetup); });
+  $('spinPromptYes').addEventListener('click', function() { $('spinPrompt').hidden = true; openSpinEnroll(true); });
+  $('spinPromptNo').addEventListener('click', function() { $('spinPrompt').hidden = true; });
 
-  // スワイプ検出（ジェスチャー表示中のみ。ボタン上の開始は無視）
-  var swipeStart = null;
-  function swipePoint(e) {
+  // 銀河の回転トラッキング（spin表示中のみ。ボタン上の開始は無視）
+  var spinSamples = new Float32Array(4096);
+  var spinSampleCount = 0;
+  var spinDragging = false, spinHasLast = false, spinLastAngle = 0, spinLastT = 0;
+  function spinPoint(e) {
     var t = e.changedTouches ? e.changedTouches[0] : (e.touches ? e.touches[0] : e);
     return t ? { x: t.clientX, y: t.clientY } : null;
   }
-  function dirFromDelta(dx, dy) {
-    if (Math.max(Math.abs(dx), Math.abs(dy)) < 48) return null;
-    return Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'R' : 'L') : (dy > 0 ? 'D' : 'U');
+  function spinAngleAt(p) {
+    var dx = p.x - P.cx, dy = p.y - P.cy;
+    if (dx * dx + dy * dy < 1600) return null; // 中心付近は角度が不安定なので無視
+    return Math.atan2(dy, dx);
+  }
+  function spinDragStart(p) {
+    spinDragging = true; spinSampleCount = 0; spinLastT = 0;
+    var a = spinAngleAt(p);
+    spinHasLast = a !== null;
+    if (a !== null) { spinSamples[spinSampleCount++] = a; spinLastAngle = a; }
+    P.dragging = true; P.vel = 0;
+  }
+  function spinDragMove(p, ts) {
+    if (!spinDragging) return;
+    var a = spinAngleAt(p);
+    if (a === null) return;
+    if (spinSampleCount < spinSamples.length) spinSamples[spinSampleCount++] = a;
+    if (spinHasLast) {
+      var d = a - spinLastAngle;
+      while (d > Math.PI) d -= Math.PI * 2;
+      while (d < -Math.PI) d += Math.PI * 2;
+      P.rot += d; // 指の角度に1:1で追従
+      if (ts && spinLastT && ts > spinLastT) {
+        P.vel = P.vel * 0.65 + (d / ((ts - spinLastT) / 1000)) * 0.35;
+        if (P.vel > 6) P.vel = 6; else if (P.vel < -6) P.vel = -6;
+      }
+    }
+    spinLastAngle = a; spinHasLast = true; spinLastT = ts || 0;
+  }
+  function spinDragEnd() {
+    if (!spinDragging) return;
+    spinDragging = false; P.dragging = false;
+    var arr = Array.prototype.slice.call(spinSamples.subarray(0, spinSampleCount));
+    spinSampleCount = 0;
+    var steps = extractSpinSteps(arr);
+    if (steps.length) processSpinSteps(steps);
   }
   lockOverlay.addEventListener('touchstart', function(e) {
-    if (lockView !== 'gesture') return;
-    if (e.target && e.target.tagName === 'BUTTON') { swipeStart = null; return; }
-    swipeStart = swipePoint(e);
-    setParticleTouch(swipeStart);
+    if (lockView !== 'spin') return;
+    if (e.target && e.target.tagName === 'BUTTON') return;
+    var p = spinPoint(e); if (p) spinDragStart(p);
   }, { passive: true });
   lockOverlay.addEventListener('touchmove', function(e) {
-    if (lockView !== 'gesture') return;
-    setParticleTouch(swipePoint(e));
+    if (lockView !== 'spin') return;
+    var p = spinPoint(e); if (p) spinDragMove(p, e.timeStamp);
   }, { passive: true });
-  lockOverlay.addEventListener('touchend', function(e) {
-    if (lockView !== 'gesture') { swipeStart = null; return; }
-    var p = swipePoint(e);
-    clearParticleTouch();
-    if (swipeStart && p) {
-      var dir = dirFromDelta(p.x - swipeStart.x, p.y - swipeStart.y);
-      if (dir) handleSwipe(dir);
-    }
-    swipeStart = null;
+  lockOverlay.addEventListener('touchend', function() {
+    if (lockView !== 'spin') return;
+    spinDragEnd();
   }, { passive: true });
   lockOverlay.addEventListener('mousedown', function(e) {
-    if (lockView !== 'gesture') return;
-    if (e.target && e.target.tagName === 'BUTTON') { swipeStart = null; return; }
-    swipeStart = { x: e.clientX, y: e.clientY };
-    setParticleTouch(swipeStart);
+    if (lockView !== 'spin') return;
+    if (e.target && e.target.tagName === 'BUTTON') return;
+    spinDragStart({ x: e.clientX, y: e.clientY });
   });
   lockOverlay.addEventListener('mousemove', function(e) {
-    if (lockView !== 'gesture') return;
-    setParticleTouch({ x: e.clientX, y: e.clientY });
+    if (lockView !== 'spin' || !spinDragging) return;
+    spinDragMove({ x: e.clientX, y: e.clientY }, e.timeStamp);
   });
-  lockOverlay.addEventListener('mouseup', function(e) {
-    if (lockView !== 'gesture') { swipeStart = null; return; }
-    clearParticleTouch();
-    if (swipeStart) {
-      var dir = dirFromDelta(e.clientX - swipeStart.x, e.clientY - swipeStart.y);
-      if (dir) handleSwipe(dir);
-    }
-    swipeStart = null;
+  lockOverlay.addEventListener('mouseup', function() {
+    if (lockView !== 'spin') return;
+    spinDragEnd();
   });
 
   // ==========================================
-  // パーティクル描画（単一rAFループ・事前確保した配列のみ使用）
+  // 宇宙背景＋銀河パーティクル描画（単一rAFループ・スプライト方式・線は引かない）
   // ==========================================
   var pCanvas = $('particleCanvas'), pCtx = null;
   try { pCtx = pCanvas && pCanvas.getContext ? pCanvas.getContext('2d') : null; } catch (e) { pCtx = null; }
   var reducedMotion = false;
   try { reducedMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) {}
+  var GALAXY_TILT = 0.42; // 銀河面の傾き（縦方向の圧縮率）
   var P = {
-    running: false, raf: 0, parts: [], dust: [], w: 0, h: 0, cx: 0, cy: 0, R: 0,
-    rot: 0, last: 0, ox: 0, oy: 0, rotBoost: 0, flash: 0, burst: 0,
-    tx: -9999, ty: -9999, tActive: false
+    running: false, raf: 0, parts: null, count: 0, w: 0, h: 0, cx: 0, cy: 0, R: 0,
+    rot: 0, vel: 0, last: 0, flash: 0, flare: 0, warp: 0, dragging: false,
+    bg: null, sprites: null
   };
-  function setParticleTouch(p) { if (!p) return; P.tx = p.x; P.ty = p.y; P.tActive = true; }
-  function clearParticleTouch() { P.tActive = false; }
-  function surgeParticles(dx, dy) { P.ox = dx * 22; P.oy = dy * 22; P.rotBoost = (dx !== 0 ? (dx > 0 ? 1 : -1) : (dy > 0 ? 1 : -1)) * 0.0035; }
-  function flashParticles() { P.flash = 1; }
-  function burstParticles() { P.burst = 1; }
+  function flareGalaxy(dirSign) { P.flare = 1; P.vel += (dirSign || 1) * 1.6; if (P.vel > 6) P.vel = 6; else if (P.vel < -6) P.vel = -6; }
+  function flashGalaxy() { P.flash = 1; }
+  function warpGalaxy() { if (P.warp === 0) P.warp = 0.0001; }
+
+  function makeGlowSprite(r, g, b) {
+    var c = document.createElement('canvas'); c.width = 64; c.height = 64;
+    var g2 = c.getContext('2d');
+    var grad = g2.createRadialGradient(32, 32, 0, 32, 32, 32);
+    grad.addColorStop(0, 'rgba(255,255,255,1)');
+    grad.addColorStop(0.25, 'rgba(' + r + ',' + g + ',' + b + ',0.85)');
+    grad.addColorStop(0.6, 'rgba(' + r + ',' + g + ',' + b + ',0.22)');
+    grad.addColorStop(1, 'rgba(' + r + ',' + g + ',' + b + ',0)');
+    g2.fillStyle = grad; g2.fillRect(0, 0, 64, 64);
+    return c;
+  }
+  function buildSprites() {
+    try {
+      return {
+        white: makeGlowSprite(226, 232, 240),
+        cyan: makeGlowSprite(103, 232, 249),
+        gold: makeGlowSprite(253, 224, 171),
+        red: makeGlowSprite(248, 113, 113)
+      };
+    } catch (e) { return null; }
+  }
+  // 静止画レイヤー：星空＋星雲をオフスクリーンに一度だけ描く
+  function buildBackground(w, h, dprC) {
+    try {
+      var c = document.createElement('canvas');
+      c.width = Math.round(w * dprC); c.height = Math.round(h * dprC);
+      var g = c.getContext('2d');
+      g.setTransform(dprC, 0, 0, dprC, 0, 0);
+      g.fillStyle = '#020409';
+      g.fillRect(0, 0, w, h);
+      var neb = [
+        [w * 0.22, h * 0.16, Math.max(w, h) * 0.55, 'rgba(45, 212, 191, 0.07)'],
+        [w * 0.85, h * 0.62, Math.max(w, h) * 0.60, 'rgba(139, 92, 246, 0.06)'],
+        [w * 0.62, h * 0.04, Math.max(w, h) * 0.45, 'rgba(59, 130, 246, 0.05)']
+      ];
+      for (var i = 0; i < neb.length; i++) {
+        var ng = g.createRadialGradient(neb[i][0], neb[i][1], 0, neb[i][0], neb[i][1], neb[i][2]);
+        ng.addColorStop(0, neb[i][3]); ng.addColorStop(1, 'rgba(0,0,0,0)');
+        g.fillStyle = ng; g.fillRect(0, 0, w, h);
+      }
+      for (var s = 0; s < 200; s++) {
+        var sx = Math.random() * w, sy = Math.random() * h, sr = Math.random();
+        g.globalAlpha = 0.25 + sr * 0.6;
+        g.fillStyle = sr > 0.85 ? '#CFFAFE' : '#E2E8F0';
+        var ss = sr > 0.9 ? 1.8 : 1.1;
+        g.fillRect(sx, sy, ss, ss);
+      }
+      g.globalAlpha = 1;
+      var near = makeGlowSprite(226, 232, 240);
+      for (var k = 0; k < 12; k++) {
+        var ns = 10 + Math.random() * 18;
+        g.globalAlpha = 0.25 + Math.random() * 0.4;
+        g.drawImage(near, Math.random() * w - ns / 2, Math.random() * h - ns / 2, ns, ns);
+      }
+      g.globalAlpha = 1;
+      return c;
+    } catch (e) { return null; }
+  }
 
   function sizeParticles() {
     if (!pCtx) return;
@@ -1428,28 +1562,46 @@ document.addEventListener('DOMContentLoaded', function() {
     var dprC = Math.min(window.devicePixelRatio || 1, 2);
     pCanvas.width = Math.round(w * dprC); pCanvas.height = Math.round(h * dprC);
     pCtx.setTransform(dprC, 0, 0, dprC, 0, 0);
-    P.w = w; P.h = h; P.cx = w / 2; P.cy = h * 0.47;
-    P.R = Math.min(w, h) * 0.34;
-    var area = w * h, n = Math.round(area / 8500);
-    n = Math.max(110, Math.min(320, n));
-    var hc = navigator.hardwareConcurrency || 0, dm = navigator.deviceMemory || 0;
-    if ((hc && hc <= 4) || (dm && dm <= 4)) n = Math.round(n * 0.6);
-    if (reducedMotion) n = Math.round(n * 0.55);
-    P.parts.length = 0; P.dust.length = 0;
-    var ringFr = [0.45, 0.72, 1.0], ringN = [0.24, 0.34, 0.42];
-    for (var ri = 0; ri < 3; ri++) {
-      var cnt = Math.round(n * ringN[ri]);
-      for (var i = 0; i < cnt; i++) {
-        P.parts.push({ ring: ri, ang: (i / cnt) * Math.PI * 2, rad: P.R * ringFr[ri], dir: ri % 2 === 0 ? 1 : -1, spd: 0.55 + ri * 0.22, ph: Math.random() * Math.PI * 2, glow: 0, ox: 0, oy: 0, x: 0, y: 0 });
+    P.w = w; P.h = h;
+    P.cx = w / 2; P.cy = h * 0.46; P.R = Math.min(w, h) * 0.36;
+    var space = $('spinSpace');
+    if (space && !spinStage.hidden) {
+      var rc = space.getBoundingClientRect();
+      if (rc && rc.width > 0) {
+        P.cx = rc.left + rc.width / 2;
+        P.cy = rc.top + rc.height / 2;
+        P.R = Math.min(rc.width, rc.height) * 0.44;
       }
     }
-    var dn = Math.round(n * 0.18);
-    for (var j = 0; j < dn; j++) {
-      P.dust.push({ x: Math.random() * w, y: Math.random() * h, vx: (Math.random() - 0.5) * 0.008, vy: (Math.random() - 0.5) * 0.008, glow: 0 });
+    if (!P.sprites) P.sprites = buildSprites();
+    P.bg = buildBackground(w, h, dprC);
+    var area = w * h, n = Math.round(area / 330);
+    n = Math.max(700, Math.min(1200, n));
+    var hc = navigator.hardwareConcurrency || 0, dm = navigator.deviceMemory || 0;
+    if ((hc && hc <= 4) || (dm && dm <= 4)) n = Math.round(n * 0.6);
+    if (reducedMotion) n = Math.round(n * 0.6);
+    if (!P.parts || P.parts.length < n) P.parts = new Array(n);
+    P.count = n;
+    var arms = 3, twist = 2.7;
+    for (var i = 0; i < n; i++) {
+      var p = P.parts[i] || (P.parts[i] = {});
+      var core = Math.random() < 0.16;
+      var t = core ? Math.pow(Math.random(), 1.6) * 0.24 : 0.1 + Math.pow(Math.random(), 0.75) * 0.9;
+      var arm = i % arms;
+      var spread = (Math.random() + Math.random() + Math.random() - 1.5) / 1.5;
+      p.rad = t * P.R + spread * P.R * 0.045;
+      if (p.rad < 0) p.rad = -p.rad;
+      p.ang = arm * (Math.PI * 2 / arms) + t * twist + spread * 0.55 * (1.15 - t);
+      var colR = Math.random();
+      p.col = core ? (colR < 0.6 ? 2 : 0) : (colR < 0.5 ? 1 : (colR < 0.82 ? 0 : 2)); // 0=白 1=シアン 2=金
+      p.size = (core ? 3.4 : 2.4) + Math.random() * (core ? 5.5 : 4.4);
+      p.alpha = 0.3 + (1 - t) * 0.5 + Math.random() * 0.2;
+      p.tw = Math.random() * Math.PI * 2;
+      p.tws = 0.6 + Math.random() * 1.6;
+      p.diff = 1 - (p.rad / (P.R * 1.15)) * 0.38; // 内側ほど速く回る差動回転
     }
-    // 背景を一度塗ってトレイル残像をリセット
-    pCtx.fillStyle = '#0B1220';
-    pCtx.fillRect(0, 0, w, h);
+    if (P.bg) pCtx.drawImage(P.bg, 0, 0, P.w, P.h);
+    else { pCtx.fillStyle = '#020409'; pCtx.fillRect(0, 0, P.w, P.h); }
   }
 
   function drawParticles(now) {
@@ -1458,74 +1610,51 @@ document.addEventListener('DOMContentLoaded', function() {
     if (!pCtx) return;
     var dt = Math.min(50, P.last ? (now - P.last) : 16);
     P.last = now;
-    var t = now * 0.001;
-    // トレイル用に半透明で塗る
-    pCtx.fillStyle = 'rgba(9, 14, 27, 0.34)';
-    pCtx.fillRect(0, 0, P.w, P.h);
-    if (!reducedMotion) P.rot += dt * 0.00011 + P.rotBoost * dt * 0.06;
-    P.rotBoost *= 0.94;
-    P.ox *= 0.88; P.oy *= 0.88;
-    if (P.flash > 0) P.flash = Math.max(0, P.flash - dt * 0.004);
-    var burstK = 0;
-    if (P.burst > 0) { burstK = P.burst * P.burst * 90; P.burst = Math.max(0, P.burst - dt * 0.0028); }
-    var mainCol = P.flash > 0.3 ? 'rgba(248, 113, 113, 0.9)' : 'rgba(125, 211, 252, 0.85)';
-    var lineCol = P.flash > 0.3 ? 'rgba(248, 113, 113, 0.10)' : 'rgba(56, 189, 248, 0.10)';
-    var i, p, x, y, dx, dy, d2;
-    // リング接続線
-    pCtx.beginPath();
-    pCtx.strokeStyle = lineCol; pCtx.lineWidth = 1;
-    var prevRing = -1;
-    for (i = 0; i < P.parts.length; i++) {
+    var t = now * 0.001, dts = dt / 1000;
+    if (!P.dragging) {
+      P.rot += ((reducedMotion ? 0 : 0.05) + P.vel) * dts;
+      P.vel *= Math.pow(0.18, dts); // 慣性の減衰
+      if (Math.abs(P.vel) < 0.001) P.vel = 0;
+    }
+    if (P.flash > 0) P.flash = Math.max(0, P.flash - dt * 0.0035);
+    if (P.flare > 0) P.flare = Math.max(0, P.flare - dt * 0.0022);
+    var warpK = 0;
+    if (P.warp > 0) {
+      P.warp = Math.min(1, P.warp + dt * 0.0022);
+      warpK = P.warp * P.warp;
+      P.rot += dts * 3.2 * P.warp; // ワープ演出：急加速
+    }
+    if (P.bg) pCtx.drawImage(P.bg, 0, 0, P.w, P.h);
+    else { pCtx.fillStyle = '#020409'; pCtx.fillRect(0, 0, P.w, P.h); }
+    var shakeX = P.flash > 0.25 ? Math.sin(now * 0.09) * 7 * P.flash : 0;
+    var cx = P.cx + shakeX, cy = P.cy;
+    var useRed = P.flash > 0.3;
+    var spr = P.sprites;
+    var i, p, a, rr, x, y, s, al;
+    // 中心核のグロー
+    if (spr) {
+      var cs = P.R * 1.15 * (1 + P.flare * 0.9);
+      pCtx.globalAlpha = (0.5 + P.flare * 0.4) * (1 - warpK * 0.6);
+      pCtx.drawImage(spr.cyan, cx - cs / 2, cy - cs * GALAXY_TILT / 2, cs, cs * GALAXY_TILT);
+      var cs2 = P.R * 0.42 * (1 + P.flare * 0.9);
+      pCtx.globalAlpha = 0.85 * (1 - warpK * 0.4);
+      pCtx.drawImage(useRed ? spr.red : spr.gold, cx - cs2 / 2, cy - cs2 * GALAXY_TILT / 2, cs2, cs2 * GALAXY_TILT);
+    }
+    // 銀河の粒子（光の点のみ。粒子同士を線で結ぶことはしない）
+    for (i = 0; i < P.count; i++) {
       p = P.parts[i];
-      if (p.ring !== prevRing) { if (prevRing !== -1) pCtx.closePath(); pCtx.moveTo(p.x, p.y); prevRing = p.ring; }
-      else pCtx.lineTo(p.x, p.y);
+      a = p.ang + P.rot * p.diff;
+      rr = p.rad * (1 + warpK * (0.4 + (p.rad / P.R) * 1.6));
+      x = cx + Math.cos(a) * rr;
+      y = cy + Math.sin(a) * rr * GALAXY_TILT;
+      s = p.size * (1 + warpK * 1.5);
+      al = p.alpha * (0.82 + 0.18 * Math.sin(t * p.tws + p.tw)) * (1 - warpK * 0.75);
+      if (al <= 0.01) continue;
+      pCtx.globalAlpha = al > 1 ? 1 : al;
+      if (spr) pCtx.drawImage(useRed ? spr.red : (p.col === 1 ? spr.cyan : (p.col === 2 ? spr.gold : spr.white)), x - s / 2, y - s / 2, s, s);
+      else { pCtx.fillStyle = '#A5F3FC'; pCtx.fillRect(x - 1, y - 1, 2, 2); }
     }
-    if (prevRing !== -1) pCtx.closePath();
-    pCtx.stroke();
-    // 粒子位置の更新と描画
-    pCtx.beginPath();
-    for (i = 0; i < P.parts.length; i++) {
-      p = P.parts[i];
-      var a = p.ang + P.rot * p.dir * p.spd;
-      var rr = p.rad * (1 + 0.03 * Math.sin(t * 0.9 + p.ph)) + burstK;
-      x = P.cx + Math.cos(a) * rr + P.ox;
-      y = P.cy + Math.sin(a) * rr * 0.92 + P.oy;
-      if (P.tActive) {
-        dx = x - P.tx; dy = y - P.ty; d2 = dx * dx + dy * dy;
-        if (d2 < 8100 && d2 > 0.01) { var d = Math.sqrt(d2), f = (1 - d / 90) * 13; p.ox += (dx / d) * f * 0.35; p.oy += (dy / d) * f * 0.35; p.glow = 1; }
-      }
-      p.ox *= 0.86; p.oy *= 0.86;
-      p.x = x + p.ox; p.y = y + p.oy;
-      var s = p.glow > 0.4 ? 3 : 2;
-      pCtx.rect(p.x - s / 2, p.y - s / 2, s, s);
-      if (p.glow > 0) p.glow = Math.max(0, p.glow - dt * 0.003);
-    }
-    pCtx.fillStyle = mainCol;
-    pCtx.fill();
-    // 塵（ダスト）
-    pCtx.beginPath();
-    for (i = 0; i < P.dust.length; i++) {
-      p = P.dust[i];
-      p.x += p.vx * dt; p.y += p.vy * dt;
-      if (p.x < 0) p.x += P.w; if (p.x > P.w) p.x -= P.w;
-      if (p.y < 0) p.y += P.h; if (p.y > P.h) p.y -= P.h;
-      pCtx.rect(p.x, p.y, 1.6, 1.6);
-    }
-    pCtx.fillStyle = 'rgba(148, 197, 255, 0.4)';
-    pCtx.fill();
-    // 進捗リング（解除モード時）
-    if (lockView === 'gesture' && gMode === 'unlock' && gestureLen() > 0) {
-      var total = gestureLen(), seg = (Math.PI * 2) / total, Rr = P.R + 30;
-      pCtx.beginPath();
-      pCtx.arc(P.cx, P.cy, Rr, 0, Math.PI * 2);
-      pCtx.strokeStyle = 'rgba(125, 211, 252, 0.14)'; pCtx.lineWidth = 3; pCtx.stroke();
-      pCtx.strokeStyle = '#38BDF8';
-      for (i = 0; i < gProgress.length; i++) {
-        pCtx.beginPath();
-        pCtx.arc(P.cx, P.cy, Rr, -Math.PI / 2 + i * seg + 0.06, -Math.PI / 2 + (i + 1) * seg - 0.06);
-        pCtx.stroke();
-      }
-    }
+    pCtx.globalAlpha = 1;
   }
 
   function startParticles() {
@@ -1538,6 +1667,7 @@ document.addEventListener('DOMContentLoaded', function() {
     P.running = false;
     if (P.raf) cancelAnimationFrame(P.raf);
     P.raf = 0;
+    P.warp = 0; P.flash = 0; P.flare = 0; P.vel = 0;
   }
   var resizeTimer = null;
   window.addEventListener('resize', function() {
@@ -1551,7 +1681,7 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   if (lockState.enabled) {
-    if (hasGesture()) openGestureUnlock(false);
+    if (hasSpin() && pCtx) openSpinUnlock(false);
     else openLockScreen(hasPattern() ? 'unlock' : 'setup1', false);
   }
   else lockOverlay.hidden = true;
@@ -1629,16 +1759,16 @@ document.addEventListener('DOMContentLoaded', function() {
   function jpDate(iso) { if (!iso) return '未設定'; var p = iso.split('-'); return Number(p[1]) + '/' + Number(p[2]); }
 
   $('manualLockBtn').onclick = function() {
-    if (hasGesture()) openGestureUnlock(true);
+    if (hasSpin() && pCtx) openSpinUnlock(true);
     else openLockScreen(hasPattern() ? 'unlock' : 'setup1', !hasPattern());
   };
   $('changePatternBtn').onclick = function() { openLockScreen('setup1', true); };
-  $('changeGestureBtn').onclick = function() { openGestureEnroll(true); };
-  $('deleteGestureBtn').onclick = function() {
-    if (!hasGesture()) return;
-    delete lockState.gestureHashes;
+  $('changeSpinBtn').onclick = function() { openSpinEnroll(true); };
+  $('deleteSpinBtn').onclick = function() {
+    if (!hasSpin()) return;
+    delete lockState.spinHashes;
     saveLockState();
-    showToast('ジェスチャーを削除しました');
+    showToast('銀河ジェスチャーを削除しました');
   };
   $('togglePatternBtn').onclick = function() {
     if (lockState.enabled && hasAnyLock()) { lockState.enabled = false; saveLockState(); showToast('ロックをオフにしました'); }
