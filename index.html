@@ -1048,13 +1048,13 @@ details.acc summary.hud-sec { letter-spacing: 0.14em; }
           <div class="hud-metric-label" id="hudMetricLabel">資産総額</div>
           <div class="hud-metric-value" id="hudMetricValue">¥0</div>
           <div class="hud-metric-sub" id="hudMetricSub">—</div>
-          <div class="hud-metric-hint">タップで指標切替 ／ 長押しで読み上げ</div>
+          <div class="hud-metric-hint">タップで切替 ／ 長押しで詳細</div>
         </div>
         <button type="button" class="hud-mic" id="hudMicBtn" hidden aria-label="音声コマンド">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
         </button>
       </div>
-      <div class="core-hint" id="coreHint-home">タップで詳細</div>
+      <div class="core-hint" id="coreHint-home">長押しで詳細</div>
       <button type="button" class="core-collapse-btn" id="homeCollapseBtn">▲ しまう</button>
       <div class="wave-strip" id="waveStrip" aria-hidden="true"></div>
     </div>
@@ -2420,68 +2420,90 @@ document.addEventListener('DOMContentLoaded', function() {
     return mesh;
   }
 
+  // スフィア専用パレット（参考画像の金色系で全スフィア面を統一する。
+  // シートのアクセント色はUI側（タブ・文字・オーブ等）でのみ使い、
+  // 球体そのものはこの一箇所のパレットで描く。再着色はここを差し替えるだけ）
+  var SPHERE_PALETTE = {
+    main: '251,146,60',   // アンバー：ビーム／輪郭／バンド芯
+    soft: '254,215,170',  // 淡金：メッシュ
+    deep: '234,88,12',    // 深橙：太い弧バンド
+    spark: '255,205,120', // 粒子グリッター
+    hot: '#FFF7E0'        // 白熱ドット
+  };
+  window.__spherePalette = SPHERE_PALETTE;
+
   function drawRadiantSphere(g, cx, cy, R, ang, opt) {
     opt = opt || {};
     var TAU = Math.PI * 2;
     var t = opt.t || 0;
     var red = !!(opt.flash && opt.flash > 0.3);
-    var cAcc = red ? '248,113,113' : (opt.main || '103,232,249');
-    var cSoft = red ? '254,202,202' : (opt.soft || '165,243,252');
+    var PAL = SPHERE_PALETTE;
+    var cMain = red ? '248,113,113' : PAL.main;
+    var cSoft = red ? '254,202,202' : PAL.soft;
+    var cDeep = red ? '185,28,28' : PAL.deep;
     var flare = Math.max(opt.pulse || 0, opt.flare || 0);
     var warp = opt.warp || 0;
     var spr = opt.sprites;
+    var sprMain = spr ? (red ? spr.red : (spr.amber || spr.gold || spr.cyan)) : null;
     var light = !!opt.light;
-    var Rs = R * 0.76; // 球体本体は呼び出し側のリング半径の内側に収める
+    // 球体本体の半径。ホーム／サブシートは画面いっぱいに（Rの0.98）、
+    // ロック画面は光点円（0.44·min）の内側に収めるため呼び出し側が 0.85 を渡す
+    var Rs = R * (opt.bodyScale || 0.98);
     var prevComp = g.globalCompositeOperation;
     g.globalCompositeOperation = 'lighter';
     var i, q;
 
-    // 1) ハロー（核の後光：アクセント色の大きなグロー）
-    if (spr) {
-      var halo = R * 2.5 * (1 + flare * 0.25 + warp * 0.3);
-      g.globalAlpha = 0.30 + flare * 0.2;
-      g.drawImage(red ? spr.red : spr.cyan, cx - halo / 2, cy - halo / 2, halo, halo);
+    // 1) ハロー（球体を取り巻く橙の後光・熱の放射）
+    if (sprMain) {
+      var halo = R * 2.6 * (1 + flare * 0.25 + warp * 0.3);
+      g.globalAlpha = 0.42 + flare * 0.2;
+      g.drawImage(sprMain, cx - halo / 2, cy - halo / 2, halo, halo);
     }
 
-    // 2) 粒子軌道リング（点のみ・傾いた楕円軌道・瞬き付き）
+    // 2) 粒子軌道リング（点のみ・傾いた楕円軌道・瞬き付き。
+    //    参考画像の濃密なグリッター：複数傾斜のリングに数百の点を敷く）
     var rings = light
-      ? [{ r: 0.98, tilt: 0.42, rot: 0.9, n: 22, sp: 1.0 }, { r: 1.13, tilt: -0.30, rot: 2.2, n: 18, sp: -0.7 }]
-      : [{ r: 0.95, tilt: 0.42, rot: 0.9, n: 34, sp: 1.0 }, { r: 1.06, tilt: -0.28, rot: 2.2, n: 30, sp: -0.7 }, { r: 1.16, tilt: 0.95, rot: 4.1, n: 26, sp: 0.55 }];
+      ? [{ r: 1.08, tilt: 0.22, rot: 0.5, n: 42, sp: 0.8 }, { r: 1.20, tilt: 0.50, rot: 2.3, n: 30, sp: -0.7 }]
+      : [{ r: 1.05, tilt: 0.20, rot: 0.5, n: 120, sp: 0.8 }, { r: 1.12, tilt: 0.45, rot: 1.1, n: 95, sp: 1.0 }, { r: 1.19, tilt: -0.32, rot: 2.3, n: 80, sp: -0.7 }, { r: 1.26, tilt: 0.85, rot: 4.0, n: 60, sp: 0.55 }];
     for (var ri = 0; ri < rings.length; ri++) {
-      var rg = rings[ri], rr = R * rg.r;
+      var rg = rings[ri], rr = Rs * rg.r;
       g.save();
       g.translate(cx, cy); g.rotate(rg.rot + ang.orb * 0.15); g.scale(1, rg.tilt); g.translate(-cx, -cy);
       for (i = 0; i < rg.n; i++) {
         var pa = ang.orb * rg.sp + i * TAU / rg.n + sphHash(i, ri * 7 + 1) * 0.35;
         var px = cx + Math.cos(pa) * rr, py = cy + Math.sin(pa) * rr;
         var tw = 0.45 + 0.55 * (0.5 + 0.5 * Math.sin(t * (1.2 + sphHash(i, ri + 40) * 2.2) + sphHash(i, ri + 80) * TAU));
-        var ps = (1.1 + sphHash(i, ri + 120) * 1.9) * (R / 130);
-        if (ps < 0.7) ps = 0.7;
-        g.globalAlpha = 0.75 * tw;
-        if (spr) g.drawImage(red ? spr.red : spr.cyan, px - ps * 2, py - ps * 2, ps * 4, ps * 4);
-        else { g.beginPath(); g.fillStyle = 'rgba(' + cAcc + ',1)'; g.arc(px, py, ps, 0, TAU); g.fill(); }
+        var ps = (0.8 + sphHash(i, ri + 120) * 1.5) * (R / 130);
+        if (ps < 0.55) ps = 0.55;
+        g.globalAlpha = 0.85 * tw;
+        if (sprMain) {
+          var imgP = (!red && spr.white && sphHash(i, ri + 200) > 0.82) ? spr.white : sprMain;
+          g.drawImage(imgP, px - ps * 2, py - ps * 2, ps * 4, ps * 4);
+        }
+        else { g.beginPath(); g.fillStyle = 'rgba(' + cMain + ',1)'; g.arc(px, py, ps, 0, TAU); g.fill(); }
       }
       g.restore();
     }
 
-    // 3) 太い弧バンド（傾いた楕円を大きく sweep する帯）
+    // 3) 太い弧バンド（球体のすぐ外を大きく sweep する飽和オレンジの帯）
     g.save();
-    g.translate(cx, cy); g.rotate(-0.5 + ang.seg * 0.35); g.scale(1, 0.46); g.translate(-cx, -cy);
+    g.translate(cx, cy); g.rotate(-0.5 + ang.seg * 0.35); g.scale(1, 0.42); g.translate(-cx, -cy);
     g.beginPath();
-    g.globalAlpha = 0.30;
-    g.strokeStyle = 'rgba(' + cAcc + ',1)';
-    g.lineWidth = R * 0.13;
-    g.arc(cx, cy, R * 0.90, ang.seg, ang.seg + 2.5);
+    g.globalAlpha = 0.5;
+    g.strokeStyle = 'rgba(' + cDeep + ',1)';
+    g.lineWidth = R * 0.16;
+    g.arc(cx, cy, Rs * 1.06, ang.seg, ang.seg + 5.0);
     g.stroke();
     g.beginPath();
-    g.globalAlpha = 0.45;
-    g.lineWidth = R * 0.045;
-    g.arc(cx, cy, R * 0.90, ang.seg + 0.15, ang.seg + 2.35);
+    g.globalAlpha = 0.6;
+    g.strokeStyle = 'rgba(' + cMain + ',1)';
+    g.lineWidth = R * 0.05;
+    g.arc(cx, cy, Rs * 1.06, ang.seg + 0.12, ang.seg + 4.76);
     g.stroke();
     g.restore();
 
-    // 4) ワイヤーフレーム球体（測地線メッシュを3D回転→正射影、深度で濃淡）
-    var mesh = buildSphereMesh(light ? 0 : 1);
+    // 4) ワイヤーフレーム球体（細分化2＝480辺の測地線メッシュを3D回転→正射影、深度で濃淡）
+    var mesh = buildSphereMesh(2);
     var yaw = ang.main, pitch = 0.42 + Math.sin(t * 0.3) * 0.06;
     var cyaw = Math.cos(yaw), syaw = Math.sin(yaw), cpit = Math.cos(pitch), spit = Math.sin(pitch);
     var proj = new Array(mesh.verts.length);
@@ -2501,58 +2523,58 @@ document.addEventListener('DOMContentLoaded', function() {
         if (Math.floor(Math.min(0.999, Math.max(0, dq)) * 4) !== q) continue;
         g.moveTo(p1[0], p1[1]); g.lineTo(p2[0], p2[1]);
       }
-      g.globalAlpha = 0.05 + q * 0.11 + flare * 0.08;
+      g.globalAlpha = 0.04 + q * 0.075 + flare * 0.07;
       g.strokeStyle = 'rgba(' + cSoft + ',1)';
       g.lineWidth = 1;
       g.stroke();
     }
     // 球体の輪郭
     g.beginPath();
-    g.globalAlpha = 0.26;
-    g.strokeStyle = 'rgba(' + cAcc + ',1)';
+    g.globalAlpha = 0.35;
+    g.strokeStyle = 'rgba(' + cMain + ',1)';
     g.lineWidth = 1.2;
     g.arc(cx, cy, Rs, 0, TAU);
     g.stroke();
 
-    // 5) 放射ビーム（中心から外へ・先端でフェード・明滅付き）
-    var nb = light ? 10 : 14;
+    // 5) 放射ビーム（中心から球体の1.5倍超まで・太いグロー＋芯線・明滅付き）
+    var nb = light ? 12 : 18;
     var beamAng = ang.main * 0.55 + ang.seg * 0.4;
     for (i = 0; i < nb; i++) {
       var ba = beamAng + i * TAU / nb + (sphHash(i, 7) - 0.5) * 0.3;
-      var bl = R * (0.82 + sphHash(i, 21) * 0.26) * (1 + flare * 0.22 + warp * 0.55);
+      var bl = R * (1.12 + sphHash(i, 21) * 0.43) * (1 + flare * 0.22 + warp * 0.55);
       var flick = 0.7 + 0.3 * Math.sin(t * (2 + sphHash(i, 33) * 3) + sphHash(i, 55) * TAU);
       var bx = cx + Math.cos(ba) * bl, by = cy + Math.sin(ba) * bl;
       g.beginPath();
-      g.globalAlpha = 0.12 * flick;
-      g.strokeStyle = 'rgba(' + cAcc + ',1)';
-      g.lineWidth = 5;
+      g.globalAlpha = 0.16 * flick;
+      g.strokeStyle = 'rgba(' + cMain + ',1)';
+      g.lineWidth = 7;
       g.moveTo(cx, cy); g.lineTo(cx + Math.cos(ba) * bl * 0.8, cy + Math.sin(ba) * bl * 0.8);
       g.stroke();
       var grad = g.createLinearGradient ? g.createLinearGradient(cx, cy, bx, by) : null;
       g.beginPath();
       if (grad && grad.addColorStop) {
-        grad.addColorStop(0, 'rgba(' + cAcc + ',' + (0.6 * flick).toFixed(3) + ')');
-        grad.addColorStop(1, 'rgba(' + cAcc + ',0)');
+        grad.addColorStop(0, 'rgba(' + cMain + ',' + (0.85 * flick).toFixed(3) + ')');
+        grad.addColorStop(1, 'rgba(' + cMain + ',0)');
         g.strokeStyle = grad;
       } else {
-        g.globalAlpha = 0.5 * flick;
-        g.strokeStyle = 'rgba(' + cAcc + ',1)';
+        g.globalAlpha = 0.7 * flick;
+        g.strokeStyle = 'rgba(' + cMain + ',1)';
       }
-      g.lineWidth = 1.6;
+      g.lineWidth = 2;
       g.moveTo(cx, cy); g.lineTo(bx, by);
       g.stroke();
     }
 
-    // 6) 白熱コア（スプライト＋中心の点）
+    // 6) 白熱コア（小さく強く：球体半径の約2割の熱源スプライト＋中心の純白ドット）
     if (spr) {
-      var coreS = R * 0.54 * (1 + flare * 0.45 + warp * 0.4) * (1 + 0.05 * Math.sin(t * 2.1));
-      g.globalAlpha = 0.9;
+      var coreS = Rs * 0.44 * (1 + flare * 0.45 + warp * 0.4) * (1 + 0.05 * Math.sin(t * 2.1));
+      g.globalAlpha = 0.88;
       g.drawImage(red ? spr.red : spr.white, cx - coreS / 2, cy - coreS / 2, coreS, coreS);
     }
     g.beginPath();
     g.globalAlpha = 0.95;
-    g.fillStyle = red ? '#FECACA' : '#FFFFFF';
-    g.arc(cx, cy, Math.max(1.6, R * 0.075 * (1 + flare * 0.5)), 0, TAU);
+    g.fillStyle = red ? '#FECACA' : PAL.hot;
+    g.arc(cx, cy, Math.max(1.6, Rs * 0.085 * (1 + flare * 0.5)), 0, TAU);
     g.fill();
 
     // パルス波紋（タップ／正解ステップ時の余韻）
@@ -2617,6 +2639,7 @@ document.addEventListener('DOMContentLoaded', function() {
         white: makeGlowSprite(226, 232, 240),
         cyan: makeGlowSprite(103, 232, 249),
         gold: makeGlowSprite(253, 224, 171),
+        amber: makeGlowSprite(251, 146, 60),
         red: makeGlowSprite(248, 113, 113)
       };
     } catch (e) { return null; }
@@ -2751,12 +2774,12 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     // 放射スフィア・コア（核のグローはレンダラー内包）。球体の回転は P.rot = 指の回転に追従
     drawRadiantSphere(pCtx, cx, cy, P.R, { main: P.rot, seg: P.aSeg, dash: P.aDash, orb: P.aOrb, tick: P.aTick },
-      { ratio: null, pulse: P.pulse, flash: P.flash, flare: P.flare, warp: warpK, t: t, sprites: spr });
+      { ratio: null, pulse: P.pulse, flash: P.flash, flare: P.flare, warp: warpK, t: t, sprites: spr, bodyScale: 0.85 });
     // 解除時の放射ストリーク
     if (warpK > 0.02) {
       pCtx.beginPath();
       pCtx.globalAlpha = warpK * 0.8;
-      pCtx.strokeStyle = '#A5F3FC';
+      pCtx.strokeStyle = '#FFCD78';
       pCtx.lineWidth = 1.6;
       for (i = 0; i < 36; i++) {
         var sa = i * 2.39996 + P.rot * 2;
@@ -4125,64 +4148,90 @@ document.addEventListener('DOMContentLoaded', function() {
     setRevealed('nisa', true);
   };
 
-  // コア操作：タップ=指標切替 / 円形ドラッグ=リング回転（慣性つき）/ 長押し=読み上げ
-  (function bindHudCore() {
-    var wrap = $('hudCoreWrap');
-    if (!wrap) return;
-    var down = false, dragMoved = false, startT = 0, lastA = null, lastT = 0, sx = 0, sy = 0, longTimer = 0;
-    function onMic(e) { return !!(e.target && e.target.closest && e.target.closest('#hudMicBtn')); }
-    function angAt(x, y) {
-      var r = wrap.getBoundingClientRect();
-      var dx = x - (r.left + r.width / 2), dy = y - (r.top + r.height / 2);
-      if (dx * dx + dy * dy < 900) return null;
-      return Math.atan2(dy, dx);
-    }
-    function clearLong() { if (longTimer) { clearTimeout(longTimer); longTimer = 0; } }
-    wrap.addEventListener('pointerdown', function(e) {
-      if (onMic(e)) return;
-      down = true; dragMoved = false; startT = Date.now();
-      sx = e.clientX; sy = e.clientY;
-      lastA = angAt(e.clientX, e.clientY); lastT = startT;
-      D.dragging = false;
-      clearLong();
-      longTimer = setTimeout(function() { if (down && !dragMoved) { down = false; speakSummary(); } }, 650);
-    });
-    wrap.addEventListener('pointermove', function(e) {
-      if (!down) return;
-      var dx = e.clientX - sx, dy = e.clientY - sy;
-      if (!dragMoved && dx * dx + dy * dy > 144) { dragMoved = true; D.dragging = true; clearLong(); }
-      if (!dragMoved) return;
-      var a = angAt(e.clientX, e.clientY);
-      if (a === null || lastA === null) { if (a !== null) lastA = a; return; }
-      var d = a - lastA;
-      while (d > Math.PI) d -= Math.PI * 2;
-      while (d < -Math.PI) d += Math.PI * 2;
-      D.rot += d;
-      var nowT = Date.now();
-      if (nowT > lastT) {
-        D.vel = D.vel * 0.6 + (d / ((nowT - lastT) / 1000)) * 0.4;
-        if (D.vel > 6) D.vel = 6; else if (D.vel < -6) D.vel = -6;
-      }
-      lastA = a; lastT = nowT;
-    });
-    wrap.addEventListener('pointerup', function(e) {
-      if (onMic(e)) return;
-      if (!down) return;
-      down = false;
-      clearLong();
-      var wasDrag = dragMoved;
-      D.dragging = false;
-      dragMoved = false;
-      if (!wasDrag && Date.now() - startT < 500) {
-        D.metricIdx = (D.metricIdx + 1) % Math.max(1, D.metrics.length);
-        D.pulse = 1;
-        applyHudMetric();
-        if (!coreState.home.revealed) setRevealed('home', true); // 初回タップは詳細も開く
-      }
-    });
-    wrap.addEventListener('pointercancel', function() { down = false; dragMoved = false; D.dragging = false; clearLong(); });
-  })();
-
+// コア操作：タップ=指標切替 / 円形ドラッグ=リング回転（慣性つき）/
+// 長押し=（コアのみ表示なら）詳細を開く・（詳細表示中なら）読み上げ
+//
+//.hud-core-wrap は touch-action: pan-y のため、実機では少しでも指が
+// ぶれるとブラウザがスクロール判定して pointerup の代わりに
+// pointercancel を返す。従来は pointerup のみでタップ判定していたため
+// タップが静かに飲み込まれていた（jsdom では cancel が来ないので再現しなかった）。
+// 対策：pointerdown/up の実測（変位10px未満・400ms未満）で判定し、
+// pointercancel でも同じ条件ならタップとして救済する。click は
+// pointer イベントが無い環境向けのフォールバック専用とし、
+// ジェスチャ終了時刻による抑制で二重発火を防ぐ。
+(function bindHudCore() {
+var wrap = $('hudCoreWrap');
+if (!wrap) return;
+var down = false, dragMoved = false, longFired = false, startT = 0, lastA = null, lastT = 0, sx = 0, sy = 0, lx = 0, ly = 0, longTimer = 0, suppressClickUntil = 0;
+function onMic(e) { return!!(e.target && e.target.closest && e.target.closest('#hudMicBtn'));}
+function angAt(x, y) {
+var r = wrap.getBoundingClientRect();
+var dx = x - (r.left + r.width / 2), dy = y - (r.top + r.height / 2);
+if (dx * dx + dy * dy < 900) return null;
+return Math.atan2(dy, dx);
+}
+function clearLong() { if (longTimer) { clearTimeout(longTimer); longTimer = 0;}}
+function doTapCycle() {
+D.metricIdx = (D.metricIdx + 1) % Math.max(1, D.metrics.length);
+D.pulse = 1;
+applyHudMetric();
+}
+wrap.addEventListener('pointerdown', function(e) {
+if (onMic(e)) return;
+down = true; dragMoved = false; longFired = false; startT = Date.now();
+sx = lx = e.clientX; sy = ly = e.clientY;
+lastA = angAt(e.clientX, e.clientY); lastT = startT;
+D.dragging = false;
+clearLong();
+longTimer = setTimeout(function() {
+if (!down || dragMoved) return;
+longFired = true; down = false; D.dragging = false;
+suppressClickUntil = Date.now() + 700;
+if (coreState.home.revealed) speakSummary(); // 詳細表示中：長押しで読み上げ
+else setRevealed('home', true); // コアのみ表示：長押しで詳細を開く
+}, 650);
+});
+wrap.addEventListener('pointermove', function(e) {
+if (!down) return;
+lx = e.clientX; ly = e.clientY;
+var dx = e.clientX - sx, dy = e.clientY - sy;
+if (!dragMoved && dx * dx + dy * dy > 144) { dragMoved = true; D.dragging = true; clearLong();}
+if (!dragMoved) return;
+var a = angAt(e.clientX, e.clientY);
+if (a === null || lastA === null) { if (a!== null) lastA = a; return;}
+var d = a - lastA;
+while (d > Math.PI) d -= Math.PI * 2;
+while (d < -Math.PI) d += Math.PI * 2;
+D.rot += d;
+var nowT = Date.now();
+if (nowT > lastT) {
+D.vel = D.vel * 0.6 + (d / ((nowT - lastT) / 1000)) * 0.4;
+if (D.vel > 6) D.vel = 6; else if (D.vel < -6) D.vel = -6;
+}
+lastA = a; lastT = nowT;
+});
+function endGesture(e) {
+if (onMic(e)) return;
+if (!down) return;
+down = false;
+clearLong();
+suppressClickUntil = Date.now() + 700;
+if (e && typeof e.clientX === 'number') { lx = e.clientX; ly = e.clientY;}
+var wasDrag = dragMoved;
+D.dragging = false;
+dragMoved = false;
+if (wasDrag || longFired) return;
+var dx = lx - sx, dy = ly - sy;
+if (dx * dx + dy * dy < 100 && Date.now() - startT < 400) doTapCycle();
+}
+wrap.addEventListener('pointerup', endGesture);
+wrap.addEventListener('pointercancel', endGesture);
+wrap.addEventListener('click', function(e) {
+if (onMic(e)) return;
+if (Date.now() < suppressClickUntil) return; // pointer 経路で処理済みのジェスチャ
+doTapCycle();
+});
+})();
   // 音声コマンド：音声認識APIがある端末でのみマイクボタンを表示する
   function handleVoiceCommand(t) {
     if (!t) return;
@@ -4699,18 +4748,29 @@ document.addEventListener('DOMContentLoaded', function() {
     if (c.ctx) {
       var sp = buildSprites();
       c.accentSprite = makeGlowSprite(rgbParts[0], rgbParts[1], rgbParts[2]);
-      if (sp) c.sprites = { white: sp.white, cyan: c.accentSprite, gold: sp.gold, red: sp.red };
+      if (sp) c.sprites = { white: sp.white, cyan: c.accentSprite, gold: sp.gold, amber: sp.amber, red: sp.red };
     }
     sheetCores[key] = c;
-    var dn = null;
-    wrap.addEventListener('pointerdown', function(e) { dn = { x: e.clientX, y: e.clientY, t: Date.now() }; });
-    wrap.addEventListener('pointerup', function(e) {
+    // タップ判定はホームと同じ堅牢方式：pointerdown/up の実測（変位10px未満・
+    // 400ms未満）で判定し、pointercancel でも同条件ならタップとして救済、
+    // click は pointer が無い環境向けフォールバック（二重発火は抑制窓で防止）
+    var dn = null, dnSuppressClickUntil = 0;
+    wrap.addEventListener('pointerdown', function(e) { dn = { x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, t: Date.now() }; });
+    wrap.addEventListener('pointermove', function(e) { if (dn) { dn.lx = e.clientX; dn.ly = e.clientY; } });
+    function dnEnd(e) {
       if (!dn) return;
-      var dx = e.clientX - dn.x, dy = e.clientY - dn.y, quick = Date.now() - dn.t < 500;
-      dn = null;
-      if (quick && dx * dx + dy * dy < 144) { c.pulse = 1; toggleRevealed(key); }
+      var st = dn; dn = null;
+      dnSuppressClickUntil = Date.now() + 700;
+      if (e && typeof e.clientX === 'number') { st.lx = e.clientX; st.ly = e.clientY; }
+      var dx = st.lx - st.x, dy = st.ly - st.y;
+      if (Date.now() - st.t < 400 && dx * dx + dy * dy < 100) { c.pulse = 1; toggleRevealed(key); }
+    }
+    wrap.addEventListener('pointerup', dnEnd);
+    wrap.addEventListener('pointercancel', dnEnd);
+    wrap.addEventListener('click', function() {
+      if (Date.now() < dnSuppressClickUntil) return;
+      c.pulse = 1; toggleRevealed(key);
     });
-    wrap.addEventListener('pointercancel', function() { dn = null; });
     if (typeof ResizeObserver === 'function') {
       var roTick = false;
       new ResizeObserver(function() {
