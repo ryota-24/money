@@ -69,6 +69,8 @@ body {
   background-image: radial-gradient(130% 70% at 50% -10%, #0C2440 0%, #050B16 52%, #020409 100%);
   background-attachment: fixed;
 }
+#starfieldCanvas { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+main { position: relative; z-index: 1; }
 
 /* パターンロック */
 .lock-overlay {
@@ -582,6 +584,19 @@ details.acc[open] summary { border-bottom: 1px solid var(--line); }
   text-align: center;
   pointer-events: none;
   padding: 0 52px;
+}
+.hud-center, .core-center { isolation: isolate; }
+.hud-center::before, .core-center::before {
+  content: "";
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 86%;
+  aspect-ratio: 1 / 1;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.34) 45%, rgba(0,0,0,0) 70%);
+  z-index: -1;
+  pointer-events: none;
 }
 .hud-metric-label {
   font-size: 11px;
@@ -2364,8 +2379,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // ==========================================
   // 放射スフィア・コア描画（ロック画面／ホーム／サブシート共通ヘルパー）
-  // 参考デザイン：白熱した核＋測地線ワイヤーフレーム球体＋放射ビーム＋
-  // 傾いた粒子軌道リング＋太い弧バンドを、加算発光（lighter）で描く。
+  // 参考デザイン：白熱した核＋測地線ワイヤーフレーム球体（二重）＋放射ビーム＋
+  // 傾いた粒子軌道リングを、加算発光（lighter）で描く。球体は呼吸する。
   // 粒子同士を線で結ぶことはしない（線は球体の幾何メッシュのみ）。
   // 状態は呼び出し側が保持する純粋な描画関数。
   // ang: {main, seg, dash, orb, tick} 各レイヤーの角度（main=指の回転に追従）
@@ -2424,9 +2439,11 @@ document.addEventListener('DOMContentLoaded', function() {
   // シートのアクセント色はUI側（タブ・文字・オーブ等）でのみ使い、
   // 球体そのものはこの一箇所のパレットで描く。再着色はここを差し替えるだけ）
   var SPHERE_PALETTE = {
-    main: '251,146,60',   // アンバー：ビーム／輪郭／バンド芯
-    soft: '254,215,170',  // 淡金：メッシュ
-    deep: '234,88,12',    // 深橙：太い弧バンド
+    main: '251,146,60',   // アンバー：ビーム／輪郭
+    soft: '254,215,170',  // 淡金：メッシュ前面
+    gold: '255,211,77',   // 金：温度グラデーション中間
+    cream: '255,240,200', // 白金：メッシュ最前面／内側格子／ビーム根元
+    deep: '234,88,12',    // 深橙：外縁／背面／ハロー外周
     spark: '255,205,120', // 粒子グリッター
     hot: '#FFF7E0'        // 白熱ドット
   };
@@ -2449,58 +2466,53 @@ document.addEventListener('DOMContentLoaded', function() {
     // 球体本体の半径。ホーム／サブシートは画面いっぱいに（Rの0.98）、
     // ロック画面は光点円（0.44·min）の内側に収めるため呼び出し側が 0.85 を渡す
     var Rs = R * (opt.bodyScale || 0.98);
+    // 呼吸する脈動：球体全体が約6秒周期で ±3% 膨らんで縮む（描画のみ。
+    // DOMテキスト・光点位置・ドラッグ回転の計算には影響しない）
+    var br = 1 + 0.03 * Math.sin(t * (Math.PI * 2 / 6));
+    var RsB = Rs * br;
+    window.__sphereState = { breath: br, palette: PAL };
+    var sprDeep = spr ? (red ? spr.red : (spr.deep || sprMain)) : null;
     var prevComp = g.globalCompositeOperation;
     g.globalCompositeOperation = 'lighter';
     var i, q;
 
-    // 1) ハロー（球体を取り巻く橙の後光・熱の放射）
+    // 1) ハロー（温度グラデーション：外周は深橙、内側はアンバーの二重後光）
     if (sprMain) {
-      var halo = R * 2.6 * (1 + flare * 0.25 + warp * 0.3);
-      g.globalAlpha = 0.42 + flare * 0.2;
+      if (sprDeep) {
+        var haloD = R * 3.1 * br * (1 + flare * 0.25 + warp * 0.3);
+        g.globalAlpha = 0.30 + flare * 0.15;
+        g.drawImage(sprDeep, cx - haloD / 2, cy - haloD / 2, haloD, haloD);
+      }
+      var halo = R * 2.35 * br * (1 + flare * 0.25 + warp * 0.3);
+      g.globalAlpha = 0.38 + flare * 0.2;
       g.drawImage(sprMain, cx - halo / 2, cy - halo / 2, halo, halo);
     }
 
     // 2) 粒子軌道リング（点のみ・傾いた楕円軌道・瞬き付き。
     //    参考画像の濃密なグリッター：複数傾斜のリングに数百の点を敷く）
     var rings = light
-      ? [{ r: 1.08, tilt: 0.22, rot: 0.5, n: 42, sp: 0.8 }, { r: 1.20, tilt: 0.50, rot: 2.3, n: 30, sp: -0.7 }]
-      : [{ r: 1.05, tilt: 0.20, rot: 0.5, n: 120, sp: 0.8 }, { r: 1.12, tilt: 0.45, rot: 1.1, n: 95, sp: 1.0 }, { r: 1.19, tilt: -0.32, rot: 2.3, n: 80, sp: -0.7 }, { r: 1.26, tilt: 0.85, rot: 4.0, n: 60, sp: 0.55 }];
+      ? [{ r: 1.08, tilt: 0.22, rot: 0.5, n: 130, sp: 0.8 }, { r: 1.16, tilt: 0.50, rot: 2.3, n: 95, sp: -0.7 }, { r: 1.24, tilt: -0.30, rot: 4.0, n: 75, sp: 0.55 }]
+      : [{ r: 1.05, tilt: 0.20, rot: 0.5, n: 320, sp: 0.8 }, { r: 1.12, tilt: 0.45, rot: 1.1, n: 240, sp: 1.0 }, { r: 1.19, tilt: -0.32, rot: 2.3, n: 190, sp: -0.7 }, { r: 1.26, tilt: 0.85, rot: 4.0, n: 150, sp: 0.55 }];
     for (var ri = 0; ri < rings.length; ri++) {
-      var rg = rings[ri], rr = Rs * rg.r;
+      var rg = rings[ri], rr = RsB * rg.r;
       g.save();
       g.translate(cx, cy); g.rotate(rg.rot + ang.orb * 0.15); g.scale(1, rg.tilt); g.translate(-cx, -cy);
       for (i = 0; i < rg.n; i++) {
         var pa = ang.orb * rg.sp + i * TAU / rg.n + sphHash(i, ri * 7 + 1) * 0.35;
         var px = cx + Math.cos(pa) * rr, py = cy + Math.sin(pa) * rr;
         var tw = 0.45 + 0.55 * (0.5 + 0.5 * Math.sin(t * (1.2 + sphHash(i, ri + 40) * 2.2) + sphHash(i, ri + 80) * TAU));
-        var ps = (0.8 + sphHash(i, ri + 120) * 1.5) * (R / 130);
+        var ps = (0.6 + sphHash(i, ri + 120) * 1.6) * (R / 130);
         if (ps < 0.55) ps = 0.55;
         g.globalAlpha = 0.85 * tw;
         if (sprMain) {
           var imgP = (!red && spr.white && sphHash(i, ri + 200) > 0.82) ? spr.white : sprMain;
+          if (!red && ri >= 2 && spr.deep && sphHash(i, ri + 260) > 0.25) imgP = spr.deep;
           g.drawImage(imgP, px - ps * 2, py - ps * 2, ps * 4, ps * 4);
         }
         else { g.beginPath(); g.fillStyle = 'rgba(' + cMain + ',1)'; g.arc(px, py, ps, 0, TAU); g.fill(); }
       }
       g.restore();
     }
-
-    // 3) 太い弧バンド（球体のすぐ外を大きく sweep する飽和オレンジの帯）
-    g.save();
-    g.translate(cx, cy); g.rotate(-0.5 + ang.seg * 0.35); g.scale(1, 0.42); g.translate(-cx, -cy);
-    g.beginPath();
-    g.globalAlpha = 0.5;
-    g.strokeStyle = 'rgba(' + cDeep + ',1)';
-    g.lineWidth = R * 0.16;
-    g.arc(cx, cy, Rs * 1.06, ang.seg, ang.seg + 5.0);
-    g.stroke();
-    g.beginPath();
-    g.globalAlpha = 0.6;
-    g.strokeStyle = 'rgba(' + cMain + ',1)';
-    g.lineWidth = R * 0.05;
-    g.arc(cx, cy, Rs * 1.06, ang.seg + 0.12, ang.seg + 4.76);
-    g.stroke();
-    g.restore();
 
     // 4) ワイヤーフレーム球体（細分化2＝480辺の測地線メッシュを3D回転→正射影、深度で濃淡）
     var mesh = buildSphereMesh(2);
@@ -2513,8 +2525,10 @@ document.addEventListener('DOMContentLoaded', function() {
       var z1 = -v[0] * syaw + v[2] * cyaw;
       var y2 = v[1] * cpit - z1 * spit;
       var z2 = v[1] * spit + z1 * cpit;
-      proj[i] = [cx + x1 * Rs, cy + y2 * Rs, z2];
+      proj[i] = [cx + x1 * RsB, cy + y2 * RsB, z2];
     }
+    var cMesh = [PAL.deep, PAL.main, PAL.soft, PAL.cream];
+    var cMeshRed = ['185,28,28', '248,113,113', '254,202,202', '254,226,226'];
     for (q = 0; q < 4; q++) {
       g.beginPath();
       for (i = 0; i < mesh.edges.length; i++) {
@@ -2523,8 +2537,8 @@ document.addEventListener('DOMContentLoaded', function() {
         if (Math.floor(Math.min(0.999, Math.max(0, dq)) * 4) !== q) continue;
         g.moveTo(p1[0], p1[1]); g.lineTo(p2[0], p2[1]);
       }
-      g.globalAlpha = 0.04 + q * 0.075 + flare * 0.07;
-      g.strokeStyle = 'rgba(' + cSoft + ',1)';
+      g.globalAlpha = 0.05 + q * 0.08 + flare * 0.07;
+      g.strokeStyle = 'rgba(' + (red ? cMeshRed[q] : cMesh[q]) + ',1)';
       g.lineWidth = 1;
       g.stroke();
     }
@@ -2533,41 +2547,77 @@ document.addEventListener('DOMContentLoaded', function() {
     g.globalAlpha = 0.35;
     g.strokeStyle = 'rgba(' + cMain + ',1)';
     g.lineWidth = 1.2;
-    g.arc(cx, cy, Rs, 0, TAU);
+    g.arc(cx, cy, RsB, 0, TAU);
     g.stroke();
 
-    // 5) 放射ビーム（中心から球体の1.5倍超まで・太いグロー＋芯線・明滅付き）
-    var nb = light ? 12 : 18;
-    var beamAng = ang.main * 0.55 + ang.seg * 0.4;
-    for (i = 0; i < nb; i++) {
-      var ba = beamAng + i * TAU / nb + (sphHash(i, 7) - 0.5) * 0.3;
-      var bl = R * (1.12 + sphHash(i, 21) * 0.43) * (1 + flare * 0.22 + warp * 0.55);
-      var flick = 0.7 + 0.3 * Math.sin(t * (2 + sphHash(i, 33) * 3) + sphHash(i, 55) * TAU);
-      var bx = cx + Math.cos(ba) * bl, by = cy + Math.sin(ba) * bl;
+    // 4.5) 内側の格子球（二重メッシュ：本体の0.62倍・逆回転・最も明るい金白）
+    var meshIn = buildSphereMesh(1);
+    var yawI = -yaw * 0.6, pitI = 0.9 + Math.sin(t * 0.23) * 0.05;
+    var cyI = Math.cos(yawI), syI = Math.sin(yawI), cpI = Math.cos(pitI), spI = Math.sin(pitI);
+    var RsI = RsB * 0.62;
+    var projI = new Array(meshIn.verts.length);
+    for (i = 0; i < meshIn.verts.length; i++) {
+      var vi = meshIn.verts[i];
+      var xi1 = vi[0] * cyI + vi[2] * syI;
+      var zi1 = -vi[0] * syI + vi[2] * cyI;
+      var yi2 = vi[1] * cpI - zi1 * spI;
+      var zi2 = vi[1] * spI + zi1 * cpI;
+      projI[i] = [cx + xi1 * RsI, cy + yi2 * RsI, zi2];
+    }
+    for (q = 0; q < 2; q++) {
       g.beginPath();
-      g.globalAlpha = 0.16 * flick;
-      g.strokeStyle = 'rgba(' + cMain + ',1)';
-      g.lineWidth = 7;
-      g.moveTo(cx, cy); g.lineTo(cx + Math.cos(ba) * bl * 0.8, cy + Math.sin(ba) * bl * 0.8);
-      g.stroke();
-      var grad = g.createLinearGradient ? g.createLinearGradient(cx, cy, bx, by) : null;
-      g.beginPath();
-      if (grad && grad.addColorStop) {
-        grad.addColorStop(0, 'rgba(' + cMain + ',' + (0.85 * flick).toFixed(3) + ')');
-        grad.addColorStop(1, 'rgba(' + cMain + ',0)');
-        g.strokeStyle = grad;
-      } else {
-        g.globalAlpha = 0.7 * flick;
-        g.strokeStyle = 'rgba(' + cMain + ',1)';
+      for (i = 0; i < meshIn.edges.length; i++) {
+        var ei = meshIn.edges[i], q1 = projI[ei[0]], q2 = projI[ei[1]];
+        var dqi = (q1[2] + q2[2]) * 0.25 + 0.5;
+        if ((dqi >= 0.5 ? 1 : 0) !== q) continue;
+        g.moveTo(q1[0], q1[1]); g.lineTo(q2[0], q2[1]);
       }
-      g.lineWidth = 2;
-      g.moveTo(cx, cy); g.lineTo(bx, by);
+      g.globalAlpha = (q === 0 ? 0.05 : 0.14) + flare * 0.05;
+      g.strokeStyle = 'rgba(' + (red ? '254,202,202' : PAL.cream) + ',1)';
+      g.lineWidth = 1;
       g.stroke();
+    }
+
+    // 5) 放射ビーム（主ビーム：太く明るく／副ビーム：細く長短さまざま。
+    //    色は根元が白金→中間でアンバー→先端で透明になる温度グラデーション）
+    var beamAng = ang.main * 0.55 + ang.seg * 0.4;
+    var beamSets = light
+      ? [{ n: 5, main: true }, { n: 8, main: false }]
+      : [{ n: 8, main: true }, { n: 14, main: false }];
+    for (var bs = 0; bs < beamSets.length; bs++) {
+      var bset = beamSets[bs];
+      for (i = 0; i < bset.n; i++) {
+        var seed = bs * 40 + i;
+        var ba2 = beamAng * (bset.main ? 1 : 1.13) + i * TAU / bset.n + (sphHash(seed, 7) - 0.5) * 0.3;
+        var bl2 = (bset.main ? R * (1.30 + sphHash(seed, 21) * 0.25) : R * (1.0 + sphHash(seed, 21) * 0.7)) * br * (1 + flare * 0.22 + warp * 0.55);
+        var flick2 = 0.7 + 0.3 * Math.sin(t * (2 + sphHash(seed, 33) * 3) + sphHash(seed, 55) * TAU);
+        var bx2 = cx + Math.cos(ba2) * bl2, by2 = cy + Math.sin(ba2) * bl2;
+        g.beginPath();
+        g.globalAlpha = (bset.main ? 0.20 : 0.10) * flick2;
+        g.strokeStyle = 'rgba(' + cMain + ',1)';
+        g.lineWidth = bset.main ? 10 : 4;
+        g.moveTo(cx, cy); g.lineTo(cx + Math.cos(ba2) * bl2 * 0.8, cy + Math.sin(ba2) * bl2 * 0.8);
+        g.stroke();
+        var grad2 = g.createLinearGradient ? g.createLinearGradient(cx, cy, bx2, by2) : null;
+        g.beginPath();
+        if (grad2 && grad2.addColorStop) {
+          grad2.addColorStop(0, 'rgba(' + (red ? '254,202,202' : PAL.cream) + ',' + (0.9 * flick2).toFixed(3) + ')');
+          grad2.addColorStop(0.55, 'rgba(' + cMain + ',' + (0.55 * flick2).toFixed(3) + ')');
+          grad2.addColorStop(1, 'rgba(' + cDeep + ',0)');
+          g.strokeStyle = grad2;
+        } else {
+          g.globalAlpha = 0.7 * flick2;
+          g.strokeStyle = 'rgba(' + cMain + ',1)';
+        }
+        g.lineWidth = bset.main ? 3.2 : 1;
+        g.moveTo(cx, cy); g.lineTo(bx2, by2);
+        g.stroke();
+      }
     }
 
     // 6) 白熱コア（小さく強く：球体半径の約2割の熱源スプライト＋中心の純白ドット）
     if (spr) {
-      var coreS = Rs * 0.44 * (1 + flare * 0.45 + warp * 0.4) * (1 + 0.05 * Math.sin(t * 2.1));
+      var coreS = Rs * 0.44 * (1 + flare * 0.45 + warp * 0.4) * (1 + 0.025 * Math.sin(t * 2.1));
       g.globalAlpha = 0.88;
       g.drawImage(red ? spr.red : spr.white, cx - coreS / 2, cy - coreS / 2, coreS, coreS);
     }
@@ -2640,6 +2690,7 @@ document.addEventListener('DOMContentLoaded', function() {
         cyan: makeGlowSprite(103, 232, 249),
         gold: makeGlowSprite(253, 224, 171),
         amber: makeGlowSprite(251, 146, 60),
+        deep: makeGlowSprite(234, 88, 12),
         red: makeGlowSprite(248, 113, 113)
       };
     } catch (e) { return null; }
@@ -4748,7 +4799,7 @@ doTapCycle();
     if (c.ctx) {
       var sp = buildSprites();
       c.accentSprite = makeGlowSprite(rgbParts[0], rgbParts[1], rgbParts[2]);
-      if (sp) c.sprites = { white: sp.white, cyan: c.accentSprite, gold: sp.gold, amber: sp.amber, red: sp.red };
+      if (sp) c.sprites = { white: sp.white, cyan: c.accentSprite, gold: sp.gold, amber: sp.amber, deep: sp.deep, red: sp.red };
     }
     sheetCores[key] = c;
     // タップ判定はホームと同じ堅牢方式：pointerdown/up の実測（変位10px未満・
@@ -4844,6 +4895,48 @@ doTapCycle();
   // セクション見出しリードアウト / 下部ステータスバンド
   // 既存のデータ・保存・ロック照合ロジックには一切触れない。
   // ==========================================
+  // ==========================================
+  // 全画面の星空背景（静止画：リサイズ時のみ再描画。全シート＋ロック画面の背後）
+  // ==========================================
+  (function initStarfield() {
+    var cv = document.createElement('canvas');
+    cv.id = 'starfieldCanvas';
+    cv.setAttribute('aria-hidden', 'true');
+    document.body.insertBefore(cv, document.body.firstChild);
+    var sg = null;
+    try { sg = cv.getContext('2d'); } catch (e) { sg = null; }
+    if (!sg) return;
+    var draw = function() {
+      var w = window.innerWidth || 360, h = window.innerHeight || 640;
+      var dprC = Math.min(window.devicePixelRatio || 1, 2);
+      cv.width = Math.round(w * dprC); cv.height = Math.round(h * dprC);
+      sg.setTransform(dprC, 0, 0, dprC, 0, 0);
+      sg.clearRect(0, 0, w, h);
+      var neb = [
+        [w * 0.18, h * 0.12, Math.max(w, h) * 0.55, 'rgba(251,146,60,0.050)'],
+        [w * 0.85, h * 0.55, Math.max(w, h) * 0.60, 'rgba(99,102,241,0.050)'],
+        [w * 0.60, h * 0.95, Math.max(w, h) * 0.50, 'rgba(234,88,12,0.040)']
+      ];
+      for (var i = 0; i < neb.length; i++) {
+        var ng = sg.createRadialGradient(neb[i][0], neb[i][1], 0, neb[i][0], neb[i][1], neb[i][2]);
+        ng.addColorStop(0, neb[i][3]); ng.addColorStop(1, 'rgba(0,0,0,0)');
+        sg.fillStyle = ng; sg.fillRect(0, 0, w, h);
+      }
+      for (var s = 0; s < 190; s++) {
+        var sx = Math.random() * w, sy = Math.random() * h, sr = Math.random();
+        sg.globalAlpha = 0.18 + sr * 0.55;
+        sg.fillStyle = sr > 0.86 ? '#FFE9C9' : (sr > 0.6 ? '#FFF7E0' : '#DCE6F2');
+        var ss = sr > 0.92 ? 1.9 : 1.1;
+        sg.fillRect(sx, sy, ss, ss);
+      }
+      sg.globalAlpha = 1;
+    };
+    draw();
+    var rzT = 0;
+    window.addEventListener('resize', function() { clearTimeout(rzT); rzT = setTimeout(draw, 180); });
+    window.__starfieldDraw = draw;
+  })();
+
   var DP = { bootPlayed: false, bandMsgs: [], bandIdx: 0 };
 
   function dpPad(n) { return ('0' + n).slice(-2); }
