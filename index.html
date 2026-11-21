@@ -64,6 +64,7 @@ html, body {
   line-height: 1.5;
   font-variant-numeric: tabular-nums;
   overscroll-behavior-y: none;
+  touch-action: manipulation;
 }
 
 /* パターンロック */
@@ -94,16 +95,14 @@ header {
   position: sticky;
   top: 0;
   z-index: 20;
-  background: rgba(241, 245, 249, 0.9);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  background: #F1F5F9;
   padding: calc(env(safe-area-inset-top, 12px) + 10px) 18px 12px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   border-bottom: 1px solid var(--line);
 }
-:root[data-theme="dark"] header { background: rgba(11, 17, 32, 0.9); }
+:root[data-theme="dark"] header { background: #0B1120; }
 .header-left { display: flex; align-items: center; gap: 8px; }
 header h1 { margin: 0; font-size: 18px; font-weight: 800; letter-spacing: -0.02em; }
 .net-pill {
@@ -385,13 +384,11 @@ table.sim-tbl tr.hl { background: var(--ok-bg); font-weight: 800; }
   bottom: 0;
   z-index: 30;
   display: flex;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  background: #FFFFFF;
   border-top: 1px solid var(--line);
   padding: 6px 2px calc(6px + env(safe-area-inset-bottom, 0px));
 }
-:root[data-theme="dark"] .tabs { background: rgba(19, 28, 49, 0.95); }
+:root[data-theme="dark"] .tabs { background: #131C31; }
 .tab-btn {
   flex: 1;
   background: none;
@@ -1085,8 +1082,10 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
+  var drawQueued = false;
+  function drawPatternSoon() { if (drawQueued) return; drawQueued = true; requestAnimationFrame(function() { drawQueued = false; drawPattern(); }); }
   function onStart(e) { e.preventDefault(); isDrawing = true; selectedDots = []; lineStatus = 'normal'; pointerPos = getCanvasPos(e); checkHitDot(pointerPos); drawPattern(); }
-  function onMove(e) { if (!isDrawing) return; e.preventDefault(); pointerPos = getCanvasPos(e); checkHitDot(pointerPos); drawPattern(); }
+  function onMove(e) { if (!isDrawing) return; e.preventDefault(); pointerPos = getCanvasPos(e); checkHitDot(pointerPos); drawPatternSoon(); }
   function onEnd(e) { if (!isDrawing) return; e.preventDefault(); isDrawing = false; pointerPos = null; if (selectedDots.length > 0) handlePatternComplete(); else drawPattern(); }
 
   canvas.addEventListener('touchstart', onStart, { passive: false });
@@ -1147,6 +1146,13 @@ document.addEventListener('DOMContentLoaded', function() {
   if (!S.payMonthOffset) S.payMonthOffset = 1;
 
   function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
+  var saveTimer = null;
+  function saveSoon() { if (saveTimer) return; saveTimer = setTimeout(function() { saveTimer = null; save(); }, 300); }
+  function flushSave() { if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; save(); } }
+  window.addEventListener('pagehide', flushSave);
+  document.addEventListener('visibilitychange', function() { if (document.hidden) flushSave(); });
+  var renderQueued = {};
+  function renderSoon(name, fn) { if (renderQueued[name]) return; renderQueued[name] = true; requestAnimationFrame(function() { renderQueued[name] = false; fn(); }); }
   function yen(n) { var v = Math.round(n || 0); return (v < 0 ? '−' : '') + '¥' + Math.abs(v).toLocaleString('ja-JP'); }
   function num(v) { var n = parseFloat(String(v || '').replace(/[^0-9.-]/g, '')); return isFinite(n) ? n : 0; }
   function parseMoney(s) { var d = String(s || '').replace(/\D/g, ''); return d ? Number(d) : 0; }
@@ -1154,7 +1160,7 @@ document.addEventListener('DOMContentLoaded', function() {
   function bindMoneyInput(inp, initVal, onChange) {
     inp.value = fmtMoney(initVal);
     inp.addEventListener('focus', function() { var v = parseMoney(inp.value); inp.value = v ? String(v) : ''; });
-    inp.addEventListener('blur', function() { var v = parseMoney(inp.value); inp.value = fmtMoney(v); if (onChange) onChange(v); });
+    inp.addEventListener('blur', function() { var v = parseMoney(inp.value); inp.value = fmtMoney(v); if (onChange) onChange(v); flushSave(); });
     inp.addEventListener('input', function() { if (onChange) onChange(parseMoney(inp.value)); });
   }
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
@@ -1674,7 +1680,7 @@ document.addEventListener('DOMContentLoaded', function() {
   $('set_closingDay').onchange = function() { S.closingDay = Number($('set_closingDay').value); save(); renderAll(); };
   $('set_payMonthOffset').onchange = function() { S.payMonthOffset = Number($('set_payMonthOffset').value); save(); renderAll(); };
   $('set_cardDay').onchange = function() { S.cardDay = Number($('set_cardDay').value); save(); renderAll(); };
-  bindMoneyInput($('set_cardAmt'), S.cardAmt, function(v) { S.cardAmt = v; save(); renderAll(); });
+  bindMoneyInput($('set_cardAmt'), S.cardAmt, function(v) { S.cardAmt = v; saveSoon(); renderSoon('all', renderAll); });
 
   // ==========================================
   // シート3：固定費・収入シート
@@ -1693,10 +1699,10 @@ document.addEventListener('DOMContentLoaded', function() {
     showToast(navigator.onLine ? '臨時収入を登録しました' : 'オフライン保存しました');
   };
 
-  bindMoneyInput($('set_bank'), S.bank, function(v) { S.bank = v; save(); renderStatusSheet(); });
-  bindMoneyInput($('set_cash'), S.cash, function(v) { S.cash = v; save(); renderStatusSheet(); });
-  bindMoneyInput($('set_income'), S.income, function(v) { S.income = v; save(); renderStatusSheet(); });
-  $('set_payDay').oninput = function() { S.payDay = num($('set_payDay').value); save(); renderStatusSheet(); };
+  bindMoneyInput($('set_bank'), S.bank, function(v) { S.bank = v; saveSoon(); renderSoon('status', renderStatusSheet); });
+  bindMoneyInput($('set_cash'), S.cash, function(v) { S.cash = v; saveSoon(); renderSoon('status', renderStatusSheet); });
+  bindMoneyInput($('set_income'), S.income, function(v) { S.income = v; saveSoon(); renderSoon('status', renderStatusSheet); });
+  $('set_payDay').oninput = function() { S.payDay = num($('set_payDay').value); saveSoon(); renderSoon('status', renderStatusSheet); };
 
   function buildExtraIncomeForm() {
     var f = el('div', 'ed');
@@ -2080,7 +2086,7 @@ document.addEventListener('DOMContentLoaded', function() {
     renderScholarSheet();
   };
 
-  bindMoneyInput($('simPerAmt'), S.schProfile.simPerAmount, function(v) { S.schProfile.simPerAmount = v; save(); renderScholarSheet(); });
+  bindMoneyInput($('simPerAmt'), S.schProfile.simPerAmount, function(v) { S.schProfile.simPerAmount = v; saveSoon(); renderSoon('scholar', renderScholarSheet); });
   $('simFreq').onchange = function() { S.schProfile.simFrequency = $('simFreq').value; save(); renderScholarSheet(); };
   $('simResetBtn').onclick = function() { S.schProfile.simPerAmount = 50000; S.schProfile.simFrequency = '1'; save(); renderScholarSheet(); showToast('初期設定（年5万円）に戻しました'); };
   document.querySelectorAll('#simPresetChips [data-ann]').forEach(function(b) {
@@ -2110,23 +2116,27 @@ document.addEventListener('DOMContentLoaded', function() {
   // 5タブ切り替え制御
   // ==========================================
   var TITLES = { status: '現状・月別', card: 'クレカ・現金', fixed: '固定費・収入', nisa: 'NISA', scholar: '奨学金' };
+  var curPage = 'status';
+  var dirtyPages = { status: true, card: true, fixed: true, nisa: true, scholar: true };
+  var PAGE_RENDERERS = { status: renderStatusSheet, card: renderCardSheet, fixed: renderFixedSheet, nisa: renderNisaSheet, scholar: renderScholarSheet };
+  function renderPage(k) { dirtyPages[k] = false; PAGE_RENDERERS[k](); }
+
   document.querySelectorAll('.tab-btn').forEach(function(btn) {
     btn.onclick = function() {
       var k = btn.getAttribute('data-p');
       $('pageTitle').textContent = TITLES[k];
       document.querySelectorAll('.page').forEach(function(p) { p.hidden = p.id !== 'p-' + k; });
       document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.toggle('active', b === btn); });
+      curPage = k;
+      if (dirtyPages[k]) renderPage(k);
       window.scrollTo(0, 0);
     };
   });
 
   function renderAll() {
     updateNetStatusUI();
-    renderStatusSheet();
-    renderCardSheet();
-    renderFixedSheet();
-    renderNisaSheet();
-    renderScholarSheet();
+    Object.keys(PAGE_RENDERERS).forEach(function(k) { dirtyPages[k] = true; });
+    renderPage(curPage);
   }
 
   renderAll();
