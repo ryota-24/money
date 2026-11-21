@@ -2379,7 +2379,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // ==========================================
   // 放射スフィア・コア描画（ロック画面／ホーム／サブシート共通ヘルパー）
-  // 参考デザイン：白熱した核＋測地線ワイヤーフレーム球体（二重）＋放射ビーム＋
+  // 参考デザイン：白熱した核＋測地線ワイヤーフレーム球体（二重）＋
   // 傾いた粒子軌道リングを、加算発光（lighter）で描く。球体は呼吸する。
   // 粒子同士を線で結ぶことはしない（線は球体の幾何メッシュのみ）。
   // 状態は呼び出し側が保持する純粋な描画関数。
@@ -2449,19 +2449,39 @@ document.addEventListener('DOMContentLoaded', function() {
   };
   window.__spherePalette = SPHERE_PALETTE;
 
+  // シート別アクセント色から温度グラデーション風パレットを導出する
+  // （サブシート用：色味はアクセントのまま、明暗だけを球体の層に割り当てる）
+  var TINT_PALETTES = {};
+  function tintPalette(rgbStr) {
+    if (TINT_PALETTES[rgbStr]) return TINT_PALETTES[rgbStr];
+    var p = rgbStr.split(',').map(function(x) { return parseInt(x, 10); });
+    function mix(f, t) { return p.map(function(v, i) { return Math.round(v + (t[i] - v) * f); }).join(','); }
+    var pal = {
+      main: rgbStr,
+      soft: mix(0.45, [255, 255, 255]),
+      gold: mix(0.22, [255, 255, 255]),
+      cream: mix(0.78, [255, 255, 255]),
+      deep: mix(0.38, [0, 0, 0]),
+      spark: mix(0.30, [255, 255, 255]),
+      hot: '#FFF7E0'
+    };
+    TINT_PALETTES[rgbStr] = pal;
+    return pal;
+  }
+
   function drawRadiantSphere(g, cx, cy, R, ang, opt) {
     opt = opt || {};
     var TAU = Math.PI * 2;
     var t = opt.t || 0;
     var red = !!(opt.flash && opt.flash > 0.3);
-    var PAL = SPHERE_PALETTE;
+    var PAL = opt.tint ? tintPalette(opt.tint) : SPHERE_PALETTE;
     var cMain = red ? '248,113,113' : PAL.main;
     var cSoft = red ? '254,202,202' : PAL.soft;
     var cDeep = red ? '185,28,28' : PAL.deep;
     var flare = Math.max(opt.pulse || 0, opt.flare || 0);
     var warp = opt.warp || 0;
     var spr = opt.sprites;
-    var sprMain = spr ? (red ? spr.red : (spr.amber || spr.gold || spr.cyan)) : null;
+    var sprMain = spr ? (red ? spr.red : (opt.sprTint ? opt.sprTint.main : (spr.amber || spr.gold || spr.cyan))) : null;
     var light = !!opt.light;
     // 球体本体の半径。ホーム／サブシートは画面いっぱいに（Rの0.98）、
     // ロック画面は光点円（0.44·min）の内側に収めるため呼び出し側が 0.85 を渡す
@@ -2471,7 +2491,7 @@ document.addEventListener('DOMContentLoaded', function() {
     var br = 1 + 0.03 * Math.sin(t * (Math.PI * 2 / 6));
     var RsB = Rs * br;
     window.__sphereState = { breath: br, palette: PAL };
-    var sprDeep = spr ? (red ? spr.red : (spr.deep || sprMain)) : null;
+    var sprDeep = spr ? (red ? spr.red : (opt.sprTint ? opt.sprTint.deep : (spr.deep || sprMain))) : null;
     var prevComp = g.globalCompositeOperation;
     g.globalCompositeOperation = 'lighter';
     var i, q;
@@ -2506,7 +2526,7 @@ document.addEventListener('DOMContentLoaded', function() {
         g.globalAlpha = 0.85 * tw;
         if (sprMain) {
           var imgP = (!red && spr.white && sphHash(i, ri + 200) > 0.82) ? spr.white : sprMain;
-          if (!red && ri >= 2 && spr.deep && sphHash(i, ri + 260) > 0.25) imgP = spr.deep;
+          if (!red && ri >= 2 && sprDeep && sphHash(i, ri + 260) > 0.25) imgP = sprDeep;
           g.drawImage(imgP, px - ps * 2, py - ps * 2, ps * 4, ps * 4);
         }
         else { g.beginPath(); g.fillStyle = 'rgba(' + cMain + ',1)'; g.arc(px, py, ps, 0, TAU); g.fill(); }
@@ -2576,43 +2596,6 @@ document.addEventListener('DOMContentLoaded', function() {
       g.strokeStyle = 'rgba(' + (red ? '254,202,202' : PAL.cream) + ',1)';
       g.lineWidth = 1;
       g.stroke();
-    }
-
-    // 5) 放射ビーム（主ビーム：太く明るく／副ビーム：細く長短さまざま。
-    //    色は根元が白金→中間でアンバー→先端で透明になる温度グラデーション）
-    var beamAng = ang.main * 0.55 + ang.seg * 0.4;
-    var beamSets = light
-      ? [{ n: 5, main: true }, { n: 8, main: false }]
-      : [{ n: 8, main: true }, { n: 14, main: false }];
-    for (var bs = 0; bs < beamSets.length; bs++) {
-      var bset = beamSets[bs];
-      for (i = 0; i < bset.n; i++) {
-        var seed = bs * 40 + i;
-        var ba2 = beamAng * (bset.main ? 1 : 1.13) + i * TAU / bset.n + (sphHash(seed, 7) - 0.5) * 0.3;
-        var bl2 = (bset.main ? R * (1.30 + sphHash(seed, 21) * 0.25) : R * (1.0 + sphHash(seed, 21) * 0.7)) * br * (1 + flare * 0.22 + warp * 0.55);
-        var flick2 = 0.7 + 0.3 * Math.sin(t * (2 + sphHash(seed, 33) * 3) + sphHash(seed, 55) * TAU);
-        var bx2 = cx + Math.cos(ba2) * bl2, by2 = cy + Math.sin(ba2) * bl2;
-        g.beginPath();
-        g.globalAlpha = (bset.main ? 0.20 : 0.10) * flick2;
-        g.strokeStyle = 'rgba(' + cMain + ',1)';
-        g.lineWidth = bset.main ? 10 : 4;
-        g.moveTo(cx, cy); g.lineTo(cx + Math.cos(ba2) * bl2 * 0.8, cy + Math.sin(ba2) * bl2 * 0.8);
-        g.stroke();
-        var grad2 = g.createLinearGradient ? g.createLinearGradient(cx, cy, bx2, by2) : null;
-        g.beginPath();
-        if (grad2 && grad2.addColorStop) {
-          grad2.addColorStop(0, 'rgba(' + (red ? '254,202,202' : PAL.cream) + ',' + (0.9 * flick2).toFixed(3) + ')');
-          grad2.addColorStop(0.55, 'rgba(' + cMain + ',' + (0.55 * flick2).toFixed(3) + ')');
-          grad2.addColorStop(1, 'rgba(' + cDeep + ',0)');
-          g.strokeStyle = grad2;
-        } else {
-          g.globalAlpha = 0.7 * flick2;
-          g.strokeStyle = 'rgba(' + cMain + ',1)';
-        }
-        g.lineWidth = bset.main ? 3.2 : 1;
-        g.moveTo(cx, cy); g.lineTo(bx2, by2);
-        g.stroke();
-      }
     }
 
     // 6) 白熱コア（小さく強く：球体半径の約2割の熱源スプライト＋中心の純白ドット）
@@ -4743,7 +4726,7 @@ doTapCycle();
       }
     }
     drawRadiantSphere(g, c.cx, c.cy, c.R, { main: c.rot, seg: c.aSeg, dash: c.aDash, orb: c.aOrb, tick: c.aTick },
-      { ratio: null, pulse: c.pulse, flash: 0, t: t, sprites: c.sprites, main: c.rgb, soft: c.rgb, teal: c.rgb, light: true });
+      { ratio: null, pulse: c.pulse, flash: 0, t: t, sprites: c.sprites, tint: c.rgb, sprTint: c.tintSprites, light: true });
     g.globalAlpha = 1;
   }
   function startSheetCore(key) {
@@ -4799,6 +4782,8 @@ doTapCycle();
     if (c.ctx) {
       var sp = buildSprites();
       c.accentSprite = makeGlowSprite(rgbParts[0], rgbParts[1], rgbParts[2]);
+      var deepParts = rgbParts.map(function(v) { return Math.round(v * 0.55); });
+      c.tintSprites = { main: c.accentSprite, deep: makeGlowSprite(deepParts[0], deepParts[1], deepParts[2]) };
       if (sp) c.sprites = { white: sp.white, cyan: c.accentSprite, gold: sp.gold, amber: sp.amber, deep: sp.deep, red: sp.red };
     }
     sheetCores[key] = c;
