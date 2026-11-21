@@ -784,6 +784,116 @@ details.acc[open] summary { border-bottom: 1px solid var(--line); }
   .orb-panel { transition: none; }
   .orb-backdrop { transition: none; }
 }
+
+/* ==========================================
+   全シート共通：中央コア＋詳細表示レイアウト
+   初期状態は画面中央のコアだけを表示し、アクションで詳細が現れる。
+   コアの canvas は JS が実測して「正方形 px」で直接指定するため、
+   初回表示でも必ず真円になる（CSS の aspect-ratio 依存をやめた）。
+   ========================================== */
+body.core-lock { overflow: hidden; }
+.core-stage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100dvh - 196px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  transition: min-height 0.45s ease;
+}
+.core-stage::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(62% 52% at 50% 46%, rgba(var(--accent-rgb), 0.13), transparent 70%);
+  pointer-events: none;
+}
+.page.revealed .core-stage { min-height: 0; justify-content: flex-start; padding: 4px 0 12px; }
+.core-stage > * { position: relative; }
+.sheet-core {
+  position: relative;
+  width: min(80vw, 320px);
+  aspect-ratio: 1 / 1;
+  margin: 0 auto;
+  border-radius: 50%;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: width 0.45s ease;
+  flex: none;
+}
+.sheet-core canvas, .hud-core-wrap canvas {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  display: block;
+}
+.core-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  pointer-events: none;
+  padding: 0 42px;
+}
+.core-label { font-size: 10px; font-weight: 800; letter-spacing: 0.24em; text-indent: 0.24em; color: var(--accent); }
+.core-value {
+  font-size: 27px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.2;
+  color: #F0FDFA; text-shadow: 0 0 18px rgba(var(--accent-rgb), 0.45);
+  margin: 4px 0 2px; font-variant-numeric: tabular-nums; white-space: nowrap;
+  transition: font-size 0.3s ease;
+}
+.core-value.neg { color: #FCA5A5; }
+.core-sub { font-size: 11px; color: #A5C4DE; min-height: 15px; }
+.core-hint {
+  margin-top: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-indent: 0.22em;
+  color: var(--sub);
+  animation: coreHintPulse 2.4s ease-in-out infinite;
+}
+@keyframes coreHintPulse { 0%, 100% { opacity: 0.45; } 50% { opacity: 1; } }
+.core-hint.seen { display: none; }
+.core-collapse-btn {
+  display: none;
+  margin-top: 14px;
+  padding: 7px 16px;
+  border-radius: 99px;
+  border: none;
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 -1px 0 rgba(var(--accent-rgb), 0.4);
+  color: var(--sub);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  cursor: pointer;
+  font-family: inherit;
+}
+.page.revealed .core-collapse-btn { display: inline-block; }
+.page.revealed .sheet-core, .page.revealed .hud-core-wrap { width: 118px; }
+.page.revealed .core-value { font-size: 13px; }
+.page.revealed .core-label { font-size: 8px; }
+.page.revealed .core-sub { display: none; }
+.page.revealed .core-center { padding: 0 8px; }
+.page.revealed .hud-metric-value { font-size: 14px; }
+.page.revealed .hud-metric-label { font-size: 8px; }
+.page.revealed .hud-metric-sub, .page.revealed .hud-metric-hint, .page.revealed .hud-mic { display: none; }
+.page.revealed .hud-center { padding: 0 8px; }
+.hud-core-wrap { transition: width 0.45s ease; }
+.sheet-details.anim-in { animation: sheetDetailsIn 0.45s ease both; }
+@keyframes sheetDetailsIn {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .core-stage, .sheet-core, .hud-core-wrap { transition: none; }
+  .core-hint { animation: none; }
+  .sheet-details.anim-in { animation: none; }
+}
 </style>
 </head>
 <body data-sheet="home">
@@ -856,13 +966,8 @@ details.acc[open] summary { border-bottom: 1px solid var(--line); }
        シート0：ホーム（コマンドセンター）
        ========================================== -->
   <div class="page" id="p-home">
-    <div class="hud-shell">
-      <div class="hud-top">
-        <div class="hud-readout" id="hudDate">—</div>
-        <div class="hud-readout"><span class="hud-dot-live"></span><span id="hudNet">ONLINE</span></div>
-      </div>
-
-      <div class="hud-core-wrap" id="hudCoreWrap">
+    <div class="core-stage" id="homeStage">
+      <div class="hud-core-wrap sheet-core-home" id="hudCoreWrap">
         <canvas id="hudCanvas"></canvas>
         <div class="hud-center">
           <div class="hud-metric-label" id="hudMetricLabel">資産総額</div>
@@ -874,6 +979,16 @@ details.acc[open] summary { border-bottom: 1px solid var(--line); }
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
         </button>
       </div>
+      <div class="core-hint" id="coreHint-home">タップで詳細</div>
+      <button type="button" class="core-collapse-btn" id="homeCollapseBtn">▲ しまう</button>
+    </div>
+    <div class="sheet-details" id="details-home" hidden>
+    <div class="hud-shell">
+      <div class="hud-top">
+        <div class="hud-readout" id="hudDate">—</div>
+        <div class="hud-readout"><span class="hud-dot-live"></span><span id="hudNet">ONLINE</span></div>
+      </div>
+
 
       <div class="hud-status" id="hudStatusLine">—</div>
 
@@ -929,6 +1044,7 @@ details.acc[open] summary { border-bottom: 1px solid var(--line); }
         <button type="button" class="hud-act" id="hudActFixed">＋ 固定費追加</button>
         <button type="button" class="hud-act" id="hudActNisa">＋ NISA追加</button>
       </div>
+    </div>
     </div>
   </div>
 
@@ -2177,9 +2293,9 @@ document.addEventListener('DOMContentLoaded', function() {
   function drawJarvisRings(g, cx, cy, R, ang, opt) {
     var TAU = Math.PI * 2;
     var red = !!(opt.flash && opt.flash > 0.3);
-    var cMain = red ? '248,113,113' : '103,232,249';
-    var cSoft = red ? '254,202,202' : '165,243,252';
-    var cTeal = red ? '248,113,113' : '45,212,191';
+    var cMain = red ? '248,113,113' : (opt.main || '103,232,249');
+    var cSoft = red ? '254,202,202' : (opt.soft || '165,243,252');
+    var cTeal = red ? '248,113,113' : (opt.teal || '45,212,191');
     var cGold = '252,211,77';
     function arc(r, a0, a1, col, alpha, w) {
       g.beginPath();
@@ -2465,6 +2581,15 @@ document.addEventListener('DOMContentLoaded', function() {
   function startParticles() {
     if (!pCtx || P.running) return;
     sizeParticles();
+    // 起動直後はビューポート寸法が確定していない場合があるため、次フレームで
+    // 寸法が変わっていたら測り直す（ホームのコアと同じ歪み対策）
+    requestAnimationFrame(function() {
+      if (lockOverlay.hidden) return;
+      if (window.innerWidth !== P.w || window.innerHeight !== P.h) {
+        sizeParticles();
+        if (lockView === 'tap') layoutTapNodes();
+      }
+    });
     P.running = true; P.last = 0;
     P.raf = requestAnimationFrame(drawParticles);
   }
@@ -2900,6 +3025,13 @@ document.addEventListener('DOMContentLoaded', function() {
       $('heroRightVal').textContent = '−' + yen(monthOut);
     }
 
+    setCoreMetric('status', {
+      label: isCurrent ? '今月の収支' : (targetM + 1) + '月の収支',
+      value: ((monthIn - monthOut) > 0 ? '+' : '') + yen(monthIn - monthOut),
+      sub: '収入 ' + yen(monthIn) + ' ／ 支出 ' + yen(monthOut),
+      neg: (monthIn - monthOut) < 0
+    });
+
     $('simMonthInTotal').textContent = '+' + yen(monthIn);
     $('simMonthOutTotal').textContent = '−' + yen(monthOut);
 
@@ -3040,6 +3172,12 @@ document.addEventListener('DOMContentLoaded', function() {
     var pTxt = (Number(S.cardDay) === 0) ? '月末払' : (S.cardDay + '日払');
     $('cardRuleSummary').textContent = '毎月' + cTxt + '・' + mTxt + pTxt;
     updateCardPayPreview();
+
+    var hdCore = computeHomeData();
+    setCoreMetric('card', hdCore.cardEv ? {
+      label: '次回引落額', value: yen(hdCore.cardEv.amount),
+      sub: (hdCore.cardEv.date.getMonth() + 1) + '/' + hdCore.cardEv.date.getDate() + ' 引落予定', neg: false
+    } : { label: '次回引落額', value: '—', sub: '予定なし', neg: false });
 
     var box = $('logList'); box.innerHTML = '';
     if (!S.log.length) { box.innerHTML = '<div class="empty">まだ利用記録がありません</div>'; return; }
@@ -3230,6 +3368,9 @@ document.addEventListener('DOMContentLoaded', function() {
       bBox.appendChild(ab);
     }
 
+    var fvParts = fixedViewKey.split('-');
+    setCoreMetric('fixed', { label: '固定費合計', value: yen(monthTotal(fixedViewKey)), sub: fvParts[0] + '年' + Number(fvParts[1]) + '月分', neg: false });
+
     var fBox = $('fixedBox'); fBox.innerHTML = '';
     var p = fixedViewKey.split('-');
     var nav = el('div', 'month-nav'); nav.style.boxShadow = 'none';
@@ -3325,6 +3466,7 @@ document.addEventListener('DOMContentLoaded', function() {
     var moTot = sum(S.nisaH, function(h) { return h.mo || 0; });
     $('nisaTotalHero').textContent = yen(tot);
     $('nisaMonthlySub').textContent = '毎月の積立設定合計：' + yen(moTot) + ' / 月';
+    setCoreMetric('nisa', { label: 'NISA評価総額', value: yen(tot), sub: '毎月積立 ' + yen(moTot), neg: false });
 
     function fv(b, mo, r, months) { var mr = (r || 0) / 100 / 12; if (!mr) return b + mo * months; var g = Math.pow(1 + mr, months); return b * g + mo * (g - 1) / mr; }
     $('nisa10y').textContent = yen(sum(S.nisaH, function(h) { return fv(h.bal, h.mo, h.rate, 120); }));
@@ -3460,6 +3602,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     $('schRemBadge').textContent = '残り ' + sch.remainingInstallments + '回';
     $('schRemPrincipal').textContent = yen(sch.remainingPrincipal);
+    setCoreMetric('scholar', { label: '奨学金残高', value: yen(sch.remainingPrincipal), sub: '残り ' + sch.remainingInstallments + ' 回 ／ 毎月 ' + yen(sch.monthlyPayment), neg: false });
     $('schPayoffSub').textContent = '毎月返還額 ' + yen(sch.monthlyPayment) + ' ／ 完済予定：' + sim.payoffYm;
 
     $('schDetailBox').innerHTML =
@@ -3583,11 +3726,21 @@ document.addEventListener('DOMContentLoaded', function() {
     if (!hudCtx) return;
     var wrap = $('hudCoreWrap');
     var w = wrap ? (wrap.clientWidth || wrap.offsetWidth || 0) : 0;
+    var h = wrap ? (wrap.clientHeight || wrap.offsetHeight || 0) : 0;
     if (!w) w = Math.min((window.innerWidth || 360) - 32, 330);
-    var side = Math.max(200, Math.min(w, 330));
+    // ラップの実測（幅・高さの小さい方）に合わせ、canvas 自身の表示ボックスも
+    // 同じ px の正方形で直接指定する。表示ボックスとバッキングストアが常に
+    // 同じ正方形になるため、初回表示でも必ず真円になる。
+    // （従来は起動時に一度だけ測った値を D.side に固定していたため、
+    //   レイアウト確定前の計測と最終表示ボックスがずれて楕円に潰れた）
+    var side = Math.round(Math.max(80, Math.min(w, h > 0 ? h : w, 340)));
     var dprC = Math.min(window.devicePixelRatio || 1, 2);
+    if (side === D.side && hudCanvasEl.width === Math.round(side * dprC)) return; // 変化なし
+    var oldSide = D.side || 0;
     hudCanvasEl.width = Math.round(side * dprC);
     hudCanvasEl.height = Math.round(side * dprC);
+    hudCanvasEl.style.width = side + 'px';
+    hudCanvasEl.style.height = side + 'px';
     hudCtx.setTransform(dprC, 0, 0, dprC, 0, 0);
     D.side = side; D.cx = side / 2; D.cy = side / 2; D.R = side * 0.40;
     if (!D.sprites) D.sprites = buildSprites();
@@ -3596,8 +3749,10 @@ document.addEventListener('DOMContentLoaded', function() {
     var n = reducedMotion ? 50 : (lowEnd ? 70 : 120);
     if (!D.parts || D.parts.length < n) D.parts = new Array(n);
     D.count = n;
+    var ratio = oldSide > 0 ? side / oldSide : 0;
     for (var i = 0; i < n; i++) {
       var p = D.parts[i] || (D.parts[i] = {});
+      if (ratio > 0 && typeof p.x === 'number') { p.x *= ratio; p.y *= ratio; continue; }
       var ang = Math.random() * Math.PI * 2, rad = Math.sqrt(Math.random()) * D.R * 1.12;
       p.x = D.cx + Math.cos(ang) * rad;
       p.y = D.cy + Math.sin(ang) * rad;
@@ -3653,7 +3808,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   function startHudLoop() {
     if (!hudCtx || D.running) return;
-    if (!D.side) sizeHudCanvas();
+    sizeHudCanvas(); // 表示されるたびに実測し直す（シート切替の副作用に頼らない）
     D.running = true; D.last = 0;
     D.raf = requestAnimationFrame(drawHud);
   }
@@ -3666,7 +3821,7 @@ document.addEventListener('DOMContentLoaded', function() {
   window.addEventListener('resize', function() {
     if (curPage !== 'home') return;
     if (hudResizeTimer) clearTimeout(hudResizeTimer);
-    hudResizeTimer = setTimeout(function() { D.side = 0; sizeHudCanvas(); if (!document.hidden && lockOverlay.hidden) startHudLoop(); }, 150);
+    hudResizeTimer = setTimeout(function() { sizeHudCanvas(); if (!document.hidden && lockOverlay.hidden) startHudLoop(); }, 150);
   });
   document.addEventListener('visibilitychange', function() {
     if (document.hidden) stopHudLoop();
@@ -3766,6 +3921,7 @@ document.addEventListener('DOMContentLoaded', function() {
   // クイックアクション：対象シートを開き、追加フォームまで一気に開く
   $('hudActExpense').onclick = function() {
     goPage('card');
+    setRevealed('card', true);
     var a = $('inAmt');
     if (a) { try { a.focus({ preventScroll: true }); } catch (e) { try { a.focus(); } catch (e2) {} } }
   };
@@ -3774,12 +3930,14 @@ document.addEventListener('DOMContentLoaded', function() {
     editId = draft.id; isNew = true;
     dirtyPages.fixed = true;
     goPage('fixed');
+    setRevealed('fixed', true);
   };
   $('hudActNisa').onclick = function() {
     hDraft = { id: uid(), n: '新規ファンド', bal: 0, mo: 0, rate: 5.0 };
     hId = hDraft.id; hNew = true;
     dirtyPages.nisa = true;
     goPage('nisa');
+    setRevealed('nisa', true);
   };
 
   // コア操作：タップ=指標切替 / 円形ドラッグ=リング回転（慣性つき）/ 長押し=読み上げ
@@ -3834,6 +3992,7 @@ document.addEventListener('DOMContentLoaded', function() {
         D.metricIdx = (D.metricIdx + 1) % Math.max(1, D.metrics.length);
         D.pulse = 1;
         applyHudMetric();
+        if (!coreState.home.revealed) setRevealed('home', true); // 初回タップは詳細も開く
       }
     });
     wrap.addEventListener('pointercancel', function() { down = false; dragMoved = false; D.dragging = false; clearLong(); });
@@ -4101,6 +4260,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
   function openOrbPanel() {
     if (orbOpen || !lockOverlay.hidden) return;
+    if (coreState[curPage] && !coreState[curPage].revealed) setRevealed(curPage, true); // コアのみ表示なら詳細も開く
+
     if (orbHideTimer) { clearTimeout(orbHideTimer); orbHideTimer = null; }
     buildOrbContent(curPage);
     orbOpen = true;
@@ -4166,6 +4327,276 @@ document.addEventListener('DOMContentLoaded', function() {
     Object.keys(PAGE_RENDERERS).forEach(function(k) { dirtyPages[k] = true; });
     renderPage(curPage);
   }
+
+  // ==========================================
+  // 全シート共通：中央コア＋詳細表示レイアウト
+  // 初期状態は画面中央のコアだけを表示する。コアへのアクションで
+  // 詳細（従来の全コンテンツ）が現れ、コアは上部の小さなエンブレムになる。
+  // 状態はセッション内のみ保持し、再起動時は全シート「コアのみ」に戻る。
+  // コア canvas は「表示されるたび／リサイズのたび」に実測して正方形へ
+  // 合わせ直すため、初回表示でも必ず真円になる。
+  // ==========================================
+  var coreState = {
+    home: { revealed: false, seen: false },
+    status: { revealed: false, seen: false },
+    card: { revealed: false, seen: false },
+    fixed: { revealed: false, seen: false },
+    nisa: { revealed: false, seen: false },
+    scholar: { revealed: false, seen: false }
+  };
+  var coreMetrics = {};
+  var sheetCores = {};
+
+  function setCoreMetric(key, m) {
+    coreMetrics[key] = m;
+    var lb = $('coreLabel-' + key), vl = $('coreValue-' + key), sb = $('coreSub-' + key);
+    if (!lb || !vl || !sb) return;
+    lb.textContent = m.label;
+    vl.textContent = m.value;
+    vl.className = 'core-value' + (m.neg ? ' neg' : '');
+    sb.textContent = m.sub || '';
+  }
+
+  function updateCoreHint(key) {
+    var hint = $('coreHint-' + key);
+    if (hint) hint.classList.toggle('seen', !!coreState[key].seen);
+  }
+
+  function refitCore(key) {
+    if (key === 'home') { sizeHudCanvas(); return; }
+    var c = sheetCores[key];
+    if (c) fitSheetCore(c);
+  }
+
+  function setRevealed(key, on) {
+    var st = coreState[key];
+    if (!st) return;
+    if (on) st.seen = true;
+    updateCoreHint(key);
+    if (st.revealed === on) return;
+    st.revealed = on;
+    var page = $('p-' + key), det = $('details-' + key);
+    if (page) { page.classList.toggle('revealed', on); page.classList.toggle('core-only', !on); }
+    if (det) {
+      det.hidden = !on;
+      if (on) { det.classList.remove('anim-in'); void det.offsetWidth; det.classList.add('anim-in'); }
+    }
+    if (curPage === key) document.body.classList.toggle('core-lock', !on);
+    window.scrollTo(0, 0);
+    requestAnimationFrame(function() { refitCore(key); });
+    setTimeout(function() { refitCore(key); }, 480);
+  }
+  function toggleRevealed(key) { setRevealed(key, !coreState[key].revealed); }
+
+  // サブシート用コアの正方形フィット（ホームの sizeHudCanvas と同じ方針：
+  // 実測した正方形 px で canvas の表示ボックスとバッキングストアを揃える）
+  function fitSheetCore(c) {
+    if (!c || !c.ctx) return;
+    var w = c.wrap.clientWidth || c.wrap.offsetWidth || 0;
+    var h = c.wrap.clientHeight || c.wrap.offsetHeight || 0;
+    if (!w) w = Math.min((window.innerWidth || 360) * 0.8, 320);
+    var side = Math.round(Math.max(80, Math.min(w, h > 0 ? h : w, 340)));
+    var dprC = Math.min(window.devicePixelRatio || 1, 2);
+    if (side === c.side && c.canvas.width === Math.round(side * dprC)) return; // 変化なし
+    var oldSide = c.side || 0;
+    c.canvas.width = Math.round(side * dprC);
+    c.canvas.height = Math.round(side * dprC);
+    c.canvas.style.width = side + 'px';
+    c.canvas.style.height = side + 'px';
+    c.ctx.setTransform(dprC, 0, 0, dprC, 0, 0);
+    c.side = side; c.cx = side / 2; c.cy = side / 2; c.R = side * 0.40;
+    if (!c.parts) {
+      var hc = navigator.hardwareConcurrency || 0, dm = navigator.deviceMemory || 0;
+      var lowEnd = (hc > 0 && hc <= 4) || (dm > 0 && dm <= 4);
+      var n = reducedMotion ? 18 : (lowEnd ? 28 : 44);
+      c.parts = new Array(n); c.count = n;
+      for (var i = 0; i < n; i++) {
+        var p = c.parts[i] = {};
+        var ang = Math.random() * Math.PI * 2, rad = Math.sqrt(Math.random()) * c.R * 1.12;
+        p.x = c.cx + Math.cos(ang) * rad;
+        p.y = c.cy + Math.sin(ang) * rad;
+        p.vx = (Math.random() - 0.5) * 2.4;
+        p.vy = (Math.random() - 0.5) * 2.4;
+        p.size = 3 + Math.random() * 5;
+        p.alpha = 0.2 + Math.random() * 0.45;
+        p.tw = Math.random() * Math.PI * 2;
+        p.tws = 0.5 + Math.random() * 1.3;
+      }
+    } else if (oldSide > 0) {
+      var ratio = side / oldSide;
+      for (var j = 0; j < c.count; j++) { c.parts[j].x *= ratio; c.parts[j].y *= ratio; }
+    }
+  }
+
+  // サブシート用コアの描画ループ（単一 rAF・表示中シートのみ）
+  var coreFx = { raf: 0, running: false, last: 0 };
+  function drawSheetCoreFrame(now) {
+    if (!coreFx.running) return;
+    coreFx.raf = requestAnimationFrame(drawSheetCoreFrame);
+    var c = sheetCores[curPage];
+    if (!c || !c.ctx || document.hidden || !lockOverlay.hidden) { stopSheetCores(); return; }
+    var page = $('p-' + curPage);
+    if (!page || page.hidden) { stopSheetCores(); return; }
+    var dt = Math.min(50, coreFx.last ? (now - coreFx.last) : 16);
+    coreFx.last = now;
+    var dts = dt / 1000, t = now * 0.001;
+    c.rot += (reducedMotion ? 0 : 0.12) * dts;
+    if (!reducedMotion) { c.aSeg -= dts * 0.3; c.aDash += dts * 0.22; c.aOrb += dts * 0.5; c.aTick += dts * 0.06; }
+    if (c.pulse > 0) c.pulse = Math.max(0, c.pulse - dt * 0.0018);
+    var g = c.ctx;
+    g.clearRect(0, 0, c.side, c.side);
+    if (c.sprites && c.parts) {
+      for (var i = 0; i < c.count; i++) {
+        var p = c.parts[i];
+        p.x += p.vx * dts; p.y += p.vy * dts;
+        if (p.x < -6) p.x = c.side + 6; else if (p.x > c.side + 6) p.x = -6;
+        if (p.y < -6) p.y = c.side + 6; else if (p.y > c.side + 6) p.y = -6;
+        var al = p.alpha * (0.8 + 0.2 * Math.sin(t * p.tws + p.tw));
+        if (al <= 0.01) continue;
+        g.globalAlpha = al > 1 ? 1 : al;
+        g.drawImage(c.accentSprite, p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+      }
+      var cs = c.R * 1.3 * (1 + c.pulse * 0.35);
+      g.globalAlpha = 0.40 + c.pulse * 0.3;
+      g.drawImage(c.accentSprite, c.cx - cs / 2, c.cy - cs / 2, cs, cs);
+      var cs2 = c.R * 0.52;
+      g.globalAlpha = 0.7;
+      g.drawImage(c.sprites.gold, c.cx - cs2 / 2, c.cy - cs2 / 2, cs2, cs2);
+    }
+    drawJarvisRings(g, c.cx, c.cy, c.R, { main: c.rot, seg: c.aSeg, dash: c.aDash, orb: c.aOrb, tick: c.aTick },
+      { ratio: null, pulse: c.pulse, flash: 0, sprites: c.sprites, main: c.rgb, soft: c.rgb, teal: c.rgb });
+    g.globalAlpha = 1;
+  }
+  function startSheetCore(key) {
+    var c = sheetCores[key];
+    if (!c || !c.ctx) return;
+    fitSheetCore(c);
+    if (!coreFx.running) { coreFx.running = true; coreFx.last = 0; coreFx.raf = requestAnimationFrame(drawSheetCoreFrame); }
+  }
+  function stopSheetCores() {
+    coreFx.running = false;
+    if (coreFx.raf) cancelAnimationFrame(coreFx.raf);
+    coreFx.raf = 0;
+  }
+  document.addEventListener('visibilitychange', function() {
+    if (document.hidden) stopSheetCores();
+    else if (curPage !== 'home' && lockOverlay.hidden) startSheetCore(curPage);
+  });
+
+  // サブシートのコア＋詳細ラッパーを構築（既存コンテンツは丸ごと詳細へ移す）
+  function buildSheetCore(key) {
+    var page = $('p-' + key);
+    if (!page || sheetCores[key]) return;
+    var det = el('div', 'sheet-details');
+    det.id = 'details-' + key;
+    det.hidden = true;
+    while (page.firstChild) det.appendChild(page.firstChild);
+    var stage = el('div', 'core-stage');
+    stage.id = 'stage-' + key;
+    var wrap = el('div', 'sheet-core');
+    wrap.id = 'core-' + key;
+    var cv = document.createElement('canvas');
+    cv.id = 'coreCanvas-' + key;
+    var cen = el('div', 'core-center');
+    var lb = el('div', 'core-label'); lb.id = 'coreLabel-' + key;
+    var vl = el('div', 'core-value', '—'); vl.id = 'coreValue-' + key;
+    var sb = el('div', 'core-sub'); sb.id = 'coreSub-' + key;
+    cen.appendChild(lb); cen.appendChild(vl); cen.appendChild(sb);
+    wrap.appendChild(cv); wrap.appendChild(cen);
+    var hint = el('div', 'core-hint', 'タップで詳細');
+    hint.id = 'coreHint-' + key;
+    stage.appendChild(wrap); stage.appendChild(hint);
+    page.appendChild(stage);
+    page.appendChild(det);
+    page.classList.add('core-only');
+    var rgbStr = ACCENTS[key] ? ACCENTS[key][1] : '103, 232, 249';
+    var rgbParts = rgbStr.split(',').map(function(x) { return parseInt(x, 10); });
+    var c = {
+      key: key, wrap: wrap, canvas: cv, ctx: null, side: 0, cx: 0, cy: 0, R: 0,
+      rot: Math.random() * 6.28, aSeg: 0, aDash: 0, aOrb: 0, aTick: 0, pulse: 0,
+      parts: null, count: 0, sprites: null, accentSprite: null, rgb: rgbStr
+    };
+    try { c.ctx = cv.getContext ? cv.getContext('2d') : null; } catch (e) { c.ctx = null; }
+    if (c.ctx) {
+      var sp = buildSprites();
+      c.accentSprite = makeGlowSprite(rgbParts[0], rgbParts[1], rgbParts[2]);
+      if (sp) c.sprites = { white: sp.white, cyan: c.accentSprite, gold: sp.gold, red: sp.red };
+    }
+    sheetCores[key] = c;
+    var dn = null;
+    wrap.addEventListener('pointerdown', function(e) { dn = { x: e.clientX, y: e.clientY, t: Date.now() }; });
+    wrap.addEventListener('pointerup', function(e) {
+      if (!dn) return;
+      var dx = e.clientX - dn.x, dy = e.clientY - dn.y, quick = Date.now() - dn.t < 500;
+      dn = null;
+      if (quick && dx * dx + dy * dy < 144) { c.pulse = 1; toggleRevealed(key); }
+    });
+    wrap.addEventListener('pointercancel', function() { dn = null; });
+    if (typeof ResizeObserver === 'function') {
+      var roTick = false;
+      new ResizeObserver(function() {
+        if (roTick) return;
+        roTick = true;
+        requestAnimationFrame(function() { roTick = false; fitSheetCore(c); });
+      }).observe(wrap);
+    }
+  }
+  ['status', 'card', 'fixed', 'nisa', 'scholar'].forEach(buildSheetCore);
+
+  // ホーム：ステージ化済みのコアに状態クラスと ResizeObserver を付ける
+  (function setupHomeCore() {
+    var page = $('p-home');
+    if (page) page.classList.add('core-only');
+    document.body.classList.add('core-lock');
+    var btn = $('homeCollapseBtn');
+    if (btn) btn.onclick = function() { setRevealed('home', false); };
+    if (typeof ResizeObserver === 'function' && $('hudCoreWrap')) {
+      var tick = false;
+      new ResizeObserver(function() {
+        if (tick) return;
+        tick = true;
+        requestAnimationFrame(function() { tick = false; sizeHudCanvas(); });
+      }).observe($('hudCoreWrap'));
+    }
+    window.addEventListener('load', function() { sizeHudCanvas(); });
+  })();
+
+  // コア指標の初期値（各シートのレンダラーが表示時に最新化する）
+  (function seedCoreMetrics() {
+    var d = computeHomeData();
+    setCoreMetric('status', { label: '今月の収支', value: (d.net > 0 ? '+' : '') + yen(d.net), sub: '収入 ' + yen(d.monthIn) + ' ／ 支出 ' + yen(d.monthOut), neg: d.net < 0 });
+    setCoreMetric('card', d.cardEv ? { label: '次回引落額', value: yen(d.cardEv.amount), sub: (d.cardEv.date.getMonth() + 1) + '/' + d.cardEv.date.getDate() + ' 引落予定', neg: false } : { label: '次回引落額', value: '—', sub: '予定なし', neg: false });
+    setCoreMetric('fixed', { label: '固定費合計', value: yen(d.fixedTot), sub: '今月分', neg: false });
+    setCoreMetric('nisa', { label: 'NISA評価総額', value: yen(d.nisaTot), sub: '毎月積立 ' + yen(d.nisaMo), neg: false });
+    setCoreMetric('scholar', { label: '奨学金残高', value: yen(d.schBal), sub: d.schCount > 0 ? '残り ' + d.schCount + ' 回' : '—', neg: false });
+  })();
+
+  // タブ表示時：スクロールロックの同期と、そのシートのコアの実測＋アニメ開始
+  // （メインのタブハンドラより後に登録されるため、表示切替後に実行される）
+  document.querySelectorAll('.tab-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var k = btn.getAttribute('data-p');
+      if (!coreState[k]) return;
+      document.body.classList.toggle('core-lock', !coreState[k].revealed);
+      if (k === 'home') sizeHudCanvas();
+      else startSheetCore(k);
+    });
+  });
+
+  // ロック解除でシートが見えた瞬間に、現在シートのコアを実測し直す
+  if (window.MutationObserver) {
+    new MutationObserver(function() {
+      if (!lockOverlay.hidden) return;
+      if (curPage === 'home') { sizeHudCanvas(); if (!document.hidden) startHudLoop(); }
+      else startSheetCore(curPage);
+    }).observe(lockOverlay, { attributes: true, attributeFilter: ['hidden'] });
+  }
+
+  window.__cores = {
+    state: coreState, metrics: coreMetrics, sheetCores: sheetCores,
+    setRevealed: setRevealed, toggleRevealed: toggleRevealed,
+    refitCore: refitCore, fitSheetCore: fitSheetCore, setCoreMetric: setCoreMetric
+  };
 
   renderAll();
   applySheetAccent('home');
