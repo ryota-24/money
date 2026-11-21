@@ -972,6 +972,128 @@ details.acc summary.hud-sec { letter-spacing: 0.14em; }
   .wave-strip i { animation: none; }
   .core-band { transition: none; }
 }
+
+/* ==========================================
+   デザインパック v17：洗練HUD（sophisticated）
+   派手さではなく余白・階層・可読性を優先する。装飾は薄く、
+   色は既存のシート別アクセントのまま。CSSのみで、
+   描画ロジック・計算・操作系には一切触れていない。
+   ========================================== */
+/* --- 背景：極薄グリッド（星空の上に固定・操作は妨げない） --- */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background-image:
+    linear-gradient(rgba(140, 190, 230, 0.030) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(140, 190, 230, 0.030) 1px, transparent 1px);
+  background-size: 44px 44px;
+  pointer-events: none;
+}
+
+/* --- カード：四隅の細いブラケット枠で輪郭を静かに締める --- */
+.card, details.acc { position: relative; }
+.card::before, details.acc::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  --bc: rgba(var(--accent-rgb), 0.30);
+  background-image:
+    linear-gradient(var(--bc), var(--bc)), linear-gradient(var(--bc), var(--bc)),
+    linear-gradient(var(--bc), var(--bc)), linear-gradient(var(--bc), var(--bc)),
+    linear-gradient(var(--bc), var(--bc)), linear-gradient(var(--bc), var(--bc)),
+    linear-gradient(var(--bc), var(--bc)), linear-gradient(var(--bc), var(--bc));
+  background-size: 13px 1px, 1px 13px, 13px 1px, 1px 13px, 13px 1px, 1px 13px, 13px 1px, 1px 13px;
+  background-position:
+    left 9px top 9px, left 9px top 9px,
+    right 9px top 9px, right 9px top 9px,
+    left 9px bottom 9px, left 9px bottom 9px,
+    right 9px bottom 9px, right 9px bottom 9px;
+  background-repeat: no-repeat;
+  opacity: 0.6;
+}
+
+/* --- コア外周：極薄のセグメント目盛りリング（装飾のみ・90秒で1周） --- */
+.sheet-core::after, .hud-core-wrap::after {
+  content: "";
+  position: absolute;
+  inset: -11px;
+  border-radius: 50%;
+  pointer-events: none;
+  background: repeating-conic-gradient(from -90deg, rgba(var(--accent-rgb), 0.55) 0deg 0.7deg, transparent 0.7deg 6deg);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 5px));
+  opacity: 0.28;
+  animation: v17TickSpin 90s linear infinite;
+}
+@keyframes v17TickSpin { to { transform: rotate(360deg); } }
+
+/* --- タイポグラフィ：ラベルの字間と階層を整える --- */
+.card-title { letter-spacing: 0.05em; }
+label, .tile .k, .hero-box .k { letter-spacing: 0.07em; }
+.badge { letter-spacing: 0.05em; }
+.tab-btn { letter-spacing: 0.06em; }
+.btn { letter-spacing: 0.03em; }
+/* リードアウト類は等幅で静かに表示する */
+.hud-clock, .hud-readout, .boot-status, .core-band span, .lock-brand-clock {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+/* --- 余白とタップ領域の微調整／押下フィードバック --- */
+.card { padding: 18px; }
+.btn-sm { padding: 6px 10px; }
+.qchip { padding: 6px 10px; }
+.btn:active, .qchip:active, .icon-btn:active, .orb-switch button:active { transform: scale(0.97); }
+
+/* --- グローを少し落として上品に --- */
+header h1 { text-shadow: 0 0 14px rgba(var(--accent-rgb), 0.35); }
+.hero-amount { text-shadow: 0 0 22px rgba(var(--accent-rgb), 0.30); }
+.tab-btn.active { text-shadow: 0 0 12px rgba(var(--accent-rgb), 0.5); }
+.core-value { text-shadow: 0 0 16px rgba(var(--accent-rgb), 0.40); }
+.hud-metric-value { text-shadow: 0 0 16px rgba(103, 232, 249, 0.40); }
+.hud-gauge { box-shadow: 0 0 12px rgba(var(--accent-rgb), 0.22); }
+
+/* --- タブバー：アクティブ位置の細いインジケータ --- */
+.tabs { box-shadow: 0 -10px 28px rgba(0, 0, 0, 0.35); }
+.tab-btn { position: relative; }
+.tab-btn.active::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 18px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+  box-shadow: 0 0 8px rgba(var(--accent-rgb), 0.75);
+}
+
+/* --- ロック画面：パターン／光点エリアに細いリング（照合方式は不変） --- */
+#patternCanvas { border-radius: 50%; box-shadow: 0 0 0 1px rgba(165, 243, 252, 0.10), 0 0 36px rgba(103, 232, 249, 0.05); }
+.tap-space::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(78%, 300px);
+  aspect-ratio: 1 / 1;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 1px solid rgba(165, 243, 252, 0.12);
+  box-shadow: inset 0 0 42px rgba(103, 232, 249, 0.04);
+  pointer-events: none;
+}
+
+/* --- 起動画面：中央にだけ薄く光を集める --- */
+.boot-overlay { background: radial-gradient(90% 62% at 50% 42%, #081830 0%, #020409 72%); }
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet-core::after, .hud-core-wrap::after { animation: none; }
+}
 </style>
 </head>
 <body data-sheet="home">
