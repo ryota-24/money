@@ -54,6 +54,13 @@
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 [hidden] { display: none !important; }
+/* iOS Safari ではドキュメントがビューポートより短いページだと固定要素の
+   基準矩形（ICB）の高さがコンテンツ基準になり、bottom:0 のタブバーが
+   画面下端ではなくドキュメント下端に付いて上に浮く。NISAシートだけ
+   コンテンツが短く該当したため、全シートで文書高が最低でも
+   ビューポート高になるよう揃える。 */
+html { height: 100%; }
+body { min-height: 100%; min-height: 100dvh; }
 html, body {
   margin: 0;
   padding: 0;
@@ -89,6 +96,23 @@ html, body {
 #patternCanvas { width: 280px; height: 280px; touch-action: none; cursor: pointer; }
 .lock-actions { margin-top: 24px; display: flex; gap: 12px; }
 .lock-link { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: #CBD5E1; font-size: 12px; padding: 8px 14px; border-radius: 99px; cursor: pointer; }
+
+/* JARVIS風パーティクル・ロック */
+.lock-overlay { overflow: hidden; transition: background 0.25s; }
+.lock-overlay.flash-err { background: #2A0F16; }
+.lock-overlay > *:not(#particleCanvas) { position: relative; z-index: 1; }
+#particleCanvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
+#gestureStage { display: flex; flex-direction: column; align-items: center; }
+.g-chips { display: flex; gap: 8px; min-height: 36px; align-items: center; justify-content: center; margin-bottom: 10px; flex-wrap: wrap; max-width: 320px; }
+.g-chip { width: 34px; height: 34px; border-radius: 50%; border: 1px solid rgba(125, 211, 252, 0.45); color: #7DD3FC; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; background: rgba(56, 189, 248, 0.07); }
+.g-chip.done { background: rgba(56, 189, 248, 0.28); color: #F0F9FF; box-shadow: 0 0 14px rgba(56, 189, 248, 0.5); border-color: rgba(125, 211, 252, 0.9); }
+.g-chip.pending { opacity: 0.35; }
+.g-chip.entered { background: rgba(56, 189, 248, 0.18); color: #E0F2FE; }
+.g-pad { width: min(78vw, 300px); height: 280px; border-radius: 24px; border: 1px solid rgba(125, 211, 252, 0.22); background: radial-gradient(circle at 50% 46%, rgba(56, 189, 248, 0.10), rgba(56, 189, 248, 0.02) 62%, transparent 75%); display: flex; align-items: flex-end; justify-content: center; padding-bottom: 16px; touch-action: none; }
+.g-pad-hint { font-size: 11px; letter-spacing: 0.14em; color: rgba(148, 197, 255, 0.75); font-weight: 700; }
+@keyframes lockShake { 0%, 100% { transform: translateX(0); } 20% { transform: translateX(-10px); } 40% { transform: translateX(10px); } 60% { transform: translateX(-6px); } 80% { transform: translateX(6px); } }
+.lock-overlay.shake #gestureStage, .lock-overlay.shake #patternCanvas { animation: lockShake 0.4s ease; }
+.gesture-prompt { position: fixed; left: 16px; right: 16px; bottom: calc(100px + env(safe-area-inset-bottom, 0px)); z-index: 9000; background: #0F172A; color: #E2E8F0; border: 1px solid rgba(125, 211, 252, 0.45); border-radius: 16px; padding: 14px 16px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45); }
 
 /* ヘッダー */
 header {
@@ -383,6 +407,10 @@ table.sim-tbl tr.hl { background: var(--ok-bg); font-weight: 800; }
   right: 0;
   bottom: 0;
   z-index: 30;
+  /* 専用コンポジティングレイヤーに載せ、iOS でスクロールやシート切替の
+     たびに固定位置が再計算されず残る現象を防ぐ */
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
   display: flex;
   background: #FFFFFF;
   border-top: 1px solid var(--line);
@@ -453,15 +481,40 @@ details.acc[open] summary { border-bottom: 1px solid var(--line); }
 </head>
 <body>
 
-<!-- パターンロック画面 -->
+<!-- ロック画面（パーティクル＋ジェスチャー／パターン） -->
 <div class="lock-overlay" id="lockOverlay">
+  <canvas id="particleCanvas"></canvas>
   <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#60A5FA" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
   <div class="lock-title" id="lockTitle">パターンを入力</div>
   <div class="lock-sub" id="lockSub">指でなぞってロックを解除</div>
-  <canvas id="patternCanvas" width="280" height="280"></canvas>
+  <div id="patternStage">
+    <canvas id="patternCanvas" width="280" height="280"></canvas>
+  </div>
+  <div id="gestureStage" hidden>
+    <div class="g-chips" id="gestureChips"></div>
+    <div class="g-pad" id="gesturePad">
+      <span class="g-pad-hint">SWIPE</span>
+    </div>
+    <div class="lock-actions">
+      <button type="button" class="lock-link" id="gestureClearBtn" hidden>クリア</button>
+      <button type="button" class="lock-link" id="gestureDoneBtn" hidden>この内容で確定</button>
+    </div>
+  </div>
   <div class="lock-actions">
     <button type="button" class="lock-link" id="lockCancelBtn" hidden>キャンセル</button>
     <button type="button" class="lock-link" id="lockResetBtn">パターンをリセット</button>
+    <button type="button" class="lock-link" id="lockPatternBtn" hidden>パターンで開く</button>
+    <button type="button" class="lock-link" id="lockGestureBtn" hidden>ジェスチャーで開く</button>
+  </div>
+</div>
+
+<!-- ジェスチャー登録の提案（パターン解除後に表示） -->
+<div class="gesture-prompt" id="gesturePrompt" hidden>
+  <div style="font-weight:800;margin-bottom:4px">新しい解除方法があります</div>
+  <div style="font-size:12px;color:#94A3B8">粒子の流れをなぞる「スワイプジェスチャー解除」を登録できます。次回からスワイプの組み合わせで開けます。</div>
+  <div style="display:flex;gap:10px;margin-top:10px">
+    <button type="button" class="btn" id="gesturePromptYes" style="flex:1">登録する</button>
+    <button type="button" class="btn ghost" id="gesturePromptNo" style="flex:1;background:rgba(255,255,255,0.08);color:#E2E8F0;border-color:rgba(255,255,255,0.25)">あとで</button>
   </div>
 </div>
 
@@ -756,12 +809,20 @@ details.acc[open] summary { border-bottom: 1px solid var(--line); }
         <button type="button" class="btn ghost full" id="syncNowBtn" style="margin-top:0;margin-bottom:14px">今すぐ状態を反映・再計算</button>
 
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-          <span class="sub" style="font-weight:700">起動時パターンロック</span>
+          <span class="sub" style="font-weight:700">起動時ロック</span>
           <span class="badge fix" id="lockStatusBadge">有効</span>
         </div>
         <div class="grid2" style="margin-bottom:14px">
           <button type="button" class="btn ghost" id="changePatternBtn">パターン変更</button>
           <button type="button" class="btn ghost" id="togglePatternBtn">ロックをオフ</button>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span class="sub" style="font-weight:700">スワイプジェスチャー解除</span>
+          <span class="badge est" id="gestureStatusBadge">未登録</span>
+        </div>
+        <div class="grid2" style="margin-bottom:14px">
+          <button type="button" class="btn ghost" id="changeGestureBtn">ジェスチャー登録・変更</button>
+          <button type="button" class="btn ghost" id="deleteGestureBtn">ジェスチャー削除</button>
         </div>
         <div class="sub" style="font-weight:700;margin-bottom:6px">全データのJSONバックアップ・復元</div>
         <div class="grid2">
@@ -965,6 +1026,11 @@ document.addEventListener('DOMContentLoaded', function() {
   var legacyPattern = lockState.pattern || '';
   if ('pattern' in lockState) delete lockState.pattern;
   function hasPattern() { return !!(lockState.patternHash || legacyPattern); }
+  // スワイプジェスチャー：平文は保存せず、接頭辞ごとのハッシュ配列だけを保持する
+  function hasGesture() { return !!(lockState.gestureHashes && lockState.gestureHashes.length >= 3); }
+  function gestureLen() { return hasGesture() ? lockState.gestureHashes.length : 0; }
+  function hasAnyLock() { return hasPattern() || hasGesture(); }
+  function hashGesturePrefix(dirs) { return hashPattern('G:' + dirs.join(',')); }
   function hashPattern(code) {
     var msg = 'kakei-lock:' + code;
     if (window.crypto && crypto.subtle && crypto.subtle.digest) {
@@ -1035,12 +1101,29 @@ document.addEventListener('DOMContentLoaded', function() {
   function openLockScreen(mode, allowCancel) {
     lockMode = mode; canCancelSetup = !!allowCancel; selectedDots = []; lineStatus = 'normal'; isDrawing = false; pointerPos = null;
     lockCancelBtn.hidden = !canCancelSetup;
-    lockResetBtn.hidden = (mode !== 'unlock');
     lockTitle.textContent = mode === 'unlock' ? 'パターンを入力' : (mode === 'setup1' ? '新しいパターンを設定' : '確認のためもう一度入力');
     lockSub.className = 'lock-sub';
     lockSub.textContent = mode === 'unlock' ? '指でなぞってロックを解除' : (mode === 'setup1' ? '4つ以上の点を結んでください' : '同じ線をもう一度なぞってください');
     lockOverlay.hidden = false;
+    showLockView('pattern');
+    startParticles();
     drawPattern();
+  }
+
+  function hideLockOverlay() {
+    lockOverlay.hidden = true;
+    stopParticles();
+  }
+
+  // ロック解除に成功した共通処理。パターンで開いた場合はジェスチャー登録を提案する
+  function onAppUnlocked(via) {
+    hideLockOverlay();
+    if (via === 'pattern' && !hasGesture()) showGesturePrompt();
+  }
+
+  function showGesturePrompt() {
+    var p = $('gesturePrompt');
+    if (p) p.hidden = false;
   }
 
   function handlePatternComplete() {
@@ -1053,7 +1136,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (lockMode === 'unlock') {
       var okUnlock = function() {
         lineStatus = 'ok'; drawPattern();
-        setTimeout(function() { lockOverlay.hidden = true; selectedDots = []; lineStatus = 'normal'; }, 200);
+        setTimeout(function() { onAppUnlocked('pattern'); selectedDots = []; lineStatus = 'normal'; }, 200);
       };
       var ngUnlock = function() {
         lineStatus = 'error'; lockSub.className = 'lock-sub err'; lockSub.textContent = 'パターンが違います'; drawPattern();
@@ -1074,7 +1157,7 @@ document.addEventListener('DOMContentLoaded', function() {
       if (code === tempPattern) {
         hashPattern(code).then(function(hx) { lockState.patternHash = hx; legacyPattern = ''; lockState.enabled = true; saveLockState(); });
         lineStatus = 'ok'; drawPattern();
-        setTimeout(function() { lockOverlay.hidden = true; selectedDots = []; lineStatus = 'normal'; showToast('パターンを登録しました'); }, 300);
+        setTimeout(function() { hideLockOverlay(); selectedDots = []; lineStatus = 'normal'; showToast('パターンを登録しました'); if (!hasGesture()) showGesturePrompt(); }, 300);
       } else {
         lineStatus = 'error'; lockSub.className = 'lock-sub err'; lockSub.textContent = '一致しません。最初からやり直してください'; drawPattern();
         setTimeout(function() { openLockScreen('setup1', canCancelSetup); }, 700);
@@ -1094,19 +1177,383 @@ document.addEventListener('DOMContentLoaded', function() {
   canvas.addEventListener('mousedown', onStart);
   window.addEventListener('mousemove', onMove);
   window.addEventListener('mouseup', onEnd);
-  lockCancelBtn.addEventListener('click', function() { lockOverlay.hidden = true; });
+  lockCancelBtn.addEventListener('click', function() { hideLockOverlay(); });
   lockResetBtn.addEventListener('click', function() {
     lockSub.className = 'lock-sub err'; lockSub.textContent = 'リセットは設定画面から、現在のパターンで解除した後に行ってください';
   });
 
   function updateLockSettingsUI() {
     var b = $('lockStatusBadge'), t = $('togglePatternBtn');
-    if (!b || !t) return;
-    if (lockState.enabled && hasPattern()) { b.textContent = '有効'; b.className = 'badge fix'; t.textContent = 'ロックをオフ'; }
-    else { b.textContent = 'オフ'; b.className = 'badge est'; t.textContent = 'ロックをオン'; }
+    if (b && t) {
+      if (lockState.enabled && hasAnyLock()) { b.textContent = '有効'; b.className = 'badge fix'; t.textContent = 'ロックをオフ'; }
+      else { b.textContent = 'オフ'; b.className = 'badge est'; t.textContent = 'ロックをオン'; }
+    }
+    var gb = $('gestureStatusBadge'), gd = $('deleteGestureBtn');
+    if (gb) {
+      if (hasGesture()) { gb.textContent = '登録済み'; gb.className = 'badge fix'; }
+      else { gb.textContent = '未登録'; gb.className = 'badge est'; }
+    }
+    if (gd) gd.hidden = !hasGesture();
   }
 
-  if (lockState.enabled) openLockScreen(hasPattern() ? 'unlock' : 'setup1', false);
+  // ==========================================
+  // JARVIS風パーティクル＋スワイプジェスチャーロック
+  // ==========================================
+  var DIR_ARROW = { U: '↑', D: '↓', L: '←', R: '→' };
+  var DIR_VEC = { U: [0, -1], D: [0, 1], L: [-1, 0], R: [1, 0] };
+  var lockView = 'pattern';           // 'pattern' | 'gesture'
+  var gMode = 'unlock';               // 'unlock' | 'enroll1' | 'enroll2'
+  var gProgress = [];                 // 入力済み方向
+  var gTempSeq = null;                // 登録1回目の入力（メモリ上のみ）
+  var gBusy = false;                  // ハッシュ照合中フラグ
+  var gestureStage = $('gestureStage'), patternStage = $('patternStage');
+  var gestureChips = $('gestureChips'), gesturePad = $('gesturePad');
+  var gestureDoneBtn = $('gestureDoneBtn'), gestureClearBtn = $('gestureClearBtn');
+  var lockPatternBtn = $('lockPatternBtn'), lockGestureBtn = $('lockGestureBtn');
+
+  function showLockView(view) {
+    lockView = view;
+    patternStage.hidden = (view !== 'pattern');
+    gestureStage.hidden = (view !== 'gesture');
+    lockPatternBtn.hidden = !(view === 'gesture' && hasPattern());
+    lockGestureBtn.hidden = !(view === 'pattern' && hasGesture());
+    lockResetBtn.hidden = !(view === 'pattern' && lockMode === 'unlock');
+  }
+
+  function renderGestureChips() {
+    gestureChips.innerHTML = '';
+    var total = (gMode === 'unlock') ? gestureLen() : Math.max(gProgress.length, 3);
+    if (gMode === 'enroll2' && gTempSeq) total = gTempSeq.length;
+    for (var i = 0; i < total; i++) {
+      var chip = el('div', 'g-chip');
+      if (i < gProgress.length) {
+        chip.textContent = DIR_ARROW[gProgress[i]];
+        chip.classList.add(gMode === 'unlock' ? 'done' : 'entered');
+      } else {
+        chip.textContent = '・';
+        chip.classList.add('pending');
+      }
+      gestureChips.appendChild(chip);
+    }
+    if (gMode === 'unlock') {
+      gestureDoneBtn.hidden = true;
+      gestureClearBtn.hidden = true;
+    } else {
+      gestureDoneBtn.hidden = !(gMode === 'enroll1' && gProgress.length >= 3);
+      gestureClearBtn.hidden = !(gProgress.length > 0);
+    }
+  }
+
+  function openGestureUnlock(allowCancel) {
+    gMode = 'unlock'; gProgress = []; gTempSeq = null; gBusy = false;
+    canCancelSetup = !!allowCancel;
+    lockCancelBtn.hidden = !allowCancel;
+    lockTitle.textContent = 'ジェスチャーで解除';
+    lockSub.className = 'lock-sub';
+    lockSub.textContent = '登録したスワイプを入力してください';
+    lockOverlay.hidden = false;
+    showLockView('gesture');
+    renderGestureChips();
+    startParticles();
+  }
+
+  function openGestureEnroll(allowCancel) {
+    gMode = 'enroll1'; gProgress = []; gTempSeq = null; gBusy = false;
+    canCancelSetup = !!allowCancel;
+    lockCancelBtn.hidden = !allowCancel;
+    lockTitle.textContent = hasGesture() ? 'ジェスチャーを変更' : 'ジェスチャーを登録';
+    lockSub.className = 'lock-sub';
+    lockSub.textContent = 'スワイプを3つ以上組み合わせてください（例：↑→↑）';
+    lockOverlay.hidden = false;
+    showLockView('gesture');
+    renderGestureChips();
+    startParticles();
+  }
+
+  function gestureError(msg) {
+    lockSub.className = 'lock-sub err';
+    lockSub.textContent = msg;
+    lockOverlay.classList.remove('shake'); void lockOverlay.offsetWidth; lockOverlay.classList.add('shake');
+    lockOverlay.classList.add('flash-err');
+    flashParticles();
+    setTimeout(function() { lockOverlay.classList.remove('flash-err'); lockOverlay.classList.remove('shake'); }, 450);
+    gProgress = [];
+    renderGestureChips();
+  }
+
+  function gestureUnlockSuccess() {
+    lockSub.className = 'lock-sub ok';
+    lockSub.textContent = '解除しました';
+    burstParticles();
+    setTimeout(function() { onAppUnlocked('gesture'); }, 450);
+  }
+
+  function finalizeGestureEnroll() {
+    var seq = gTempSeq.slice(), hashes = [], i = 0;
+    function next() {
+      if (i >= seq.length) {
+        lockState.gestureHashes = hashes;
+        lockState.enabled = true;
+        saveLockState();
+        hideLockOverlay();
+        showToast('ジェスチャーを登録しました');
+        return;
+      }
+      hashGesturePrefix(seq.slice(0, i + 1)).then(function(hx) { hashes.push(hx); i++; next(); });
+    }
+    next();
+  }
+
+  function handleSwipe(dir) {
+    if (gBusy || lockOverlay.hidden || lockView !== 'gesture') return;
+    var v = DIR_VEC[dir];
+    surgeParticles(v[0], v[1]);
+    if (gMode === 'unlock') {
+      gProgress.push(dir);
+      renderGestureChips();
+      gBusy = true;
+      hashGesturePrefix(gProgress).then(function(hx) {
+        gBusy = false;
+        if (hx === lockState.gestureHashes[gProgress.length - 1]) {
+          if (gProgress.length >= gestureLen()) gestureUnlockSuccess();
+          else { lockSub.className = 'lock-sub'; lockSub.textContent = 'あと ' + (gestureLen() - gProgress.length) + ' スワイプ'; }
+        } else {
+          gestureError('ジェスチャーが違います');
+        }
+      });
+    } else if (gMode === 'enroll1') {
+      if (gProgress.length < 12) { gProgress.push(dir); renderGestureChips(); }
+    } else if (gMode === 'enroll2') {
+      gProgress.push(dir);
+      renderGestureChips();
+      if (gProgress.length >= gTempSeq.length) {
+        var same = gProgress.length === gTempSeq.length && gProgress.every(function(d, i) { return d === gTempSeq[i]; });
+        if (same) finalizeGestureEnroll();
+        else {
+          gMode = 'enroll1'; gTempSeq = null;
+          lockTitle.textContent = 'ジェスチャーを登録';
+          gestureError('一致しません。最初からやり直してください');
+        }
+      }
+    }
+  }
+
+  gestureDoneBtn.addEventListener('click', function() {
+    if (gMode !== 'enroll1' || gProgress.length < 3) return;
+    gTempSeq = gProgress.slice();
+    gProgress = [];
+    gMode = 'enroll2';
+    lockTitle.textContent = '確認のためもう一度';
+    lockSub.className = 'lock-sub';
+    lockSub.textContent = '同じジェスチャーをもう一度入力してください';
+    renderGestureChips();
+  });
+  gestureClearBtn.addEventListener('click', function() { gProgress = []; renderGestureChips(); });
+  lockPatternBtn.addEventListener('click', function() { openLockScreen('unlock', canCancelSetup); });
+  lockGestureBtn.addEventListener('click', function() { openGestureUnlock(canCancelSetup); });
+  $('gesturePromptYes').addEventListener('click', function() { $('gesturePrompt').hidden = true; openGestureEnroll(true); });
+  $('gesturePromptNo').addEventListener('click', function() { $('gesturePrompt').hidden = true; });
+
+  // スワイプ検出（ジェスチャー表示中のみ。ボタン上の開始は無視）
+  var swipeStart = null;
+  function swipePoint(e) {
+    var t = e.changedTouches ? e.changedTouches[0] : (e.touches ? e.touches[0] : e);
+    return t ? { x: t.clientX, y: t.clientY } : null;
+  }
+  function dirFromDelta(dx, dy) {
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < 48) return null;
+    return Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'R' : 'L') : (dy > 0 ? 'D' : 'U');
+  }
+  lockOverlay.addEventListener('touchstart', function(e) {
+    if (lockView !== 'gesture') return;
+    if (e.target && e.target.tagName === 'BUTTON') { swipeStart = null; return; }
+    swipeStart = swipePoint(e);
+    setParticleTouch(swipeStart);
+  }, { passive: true });
+  lockOverlay.addEventListener('touchmove', function(e) {
+    if (lockView !== 'gesture') return;
+    setParticleTouch(swipePoint(e));
+  }, { passive: true });
+  lockOverlay.addEventListener('touchend', function(e) {
+    if (lockView !== 'gesture') { swipeStart = null; return; }
+    var p = swipePoint(e);
+    clearParticleTouch();
+    if (swipeStart && p) {
+      var dir = dirFromDelta(p.x - swipeStart.x, p.y - swipeStart.y);
+      if (dir) handleSwipe(dir);
+    }
+    swipeStart = null;
+  }, { passive: true });
+  lockOverlay.addEventListener('mousedown', function(e) {
+    if (lockView !== 'gesture') return;
+    if (e.target && e.target.tagName === 'BUTTON') { swipeStart = null; return; }
+    swipeStart = { x: e.clientX, y: e.clientY };
+    setParticleTouch(swipeStart);
+  });
+  lockOverlay.addEventListener('mousemove', function(e) {
+    if (lockView !== 'gesture') return;
+    setParticleTouch({ x: e.clientX, y: e.clientY });
+  });
+  lockOverlay.addEventListener('mouseup', function(e) {
+    if (lockView !== 'gesture') { swipeStart = null; return; }
+    clearParticleTouch();
+    if (swipeStart) {
+      var dir = dirFromDelta(e.clientX - swipeStart.x, e.clientY - swipeStart.y);
+      if (dir) handleSwipe(dir);
+    }
+    swipeStart = null;
+  });
+
+  // ==========================================
+  // パーティクル描画（単一rAFループ・事前確保した配列のみ使用）
+  // ==========================================
+  var pCanvas = $('particleCanvas'), pCtx = null;
+  try { pCtx = pCanvas && pCanvas.getContext ? pCanvas.getContext('2d') : null; } catch (e) { pCtx = null; }
+  var reducedMotion = false;
+  try { reducedMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) {}
+  var P = {
+    running: false, raf: 0, parts: [], dust: [], w: 0, h: 0, cx: 0, cy: 0, R: 0,
+    rot: 0, last: 0, ox: 0, oy: 0, rotBoost: 0, flash: 0, burst: 0,
+    tx: -9999, ty: -9999, tActive: false
+  };
+  function setParticleTouch(p) { if (!p) return; P.tx = p.x; P.ty = p.y; P.tActive = true; }
+  function clearParticleTouch() { P.tActive = false; }
+  function surgeParticles(dx, dy) { P.ox = dx * 22; P.oy = dy * 22; P.rotBoost = (dx !== 0 ? (dx > 0 ? 1 : -1) : (dy > 0 ? 1 : -1)) * 0.0035; }
+  function flashParticles() { P.flash = 1; }
+  function burstParticles() { P.burst = 1; }
+
+  function sizeParticles() {
+    if (!pCtx) return;
+    var w = window.innerWidth || 360, h = window.innerHeight || 640;
+    var dprC = Math.min(window.devicePixelRatio || 1, 2);
+    pCanvas.width = Math.round(w * dprC); pCanvas.height = Math.round(h * dprC);
+    pCtx.setTransform(dprC, 0, 0, dprC, 0, 0);
+    P.w = w; P.h = h; P.cx = w / 2; P.cy = h * 0.47;
+    P.R = Math.min(w, h) * 0.34;
+    var area = w * h, n = Math.round(area / 8500);
+    n = Math.max(110, Math.min(320, n));
+    var hc = navigator.hardwareConcurrency || 0, dm = navigator.deviceMemory || 0;
+    if ((hc && hc <= 4) || (dm && dm <= 4)) n = Math.round(n * 0.6);
+    if (reducedMotion) n = Math.round(n * 0.55);
+    P.parts.length = 0; P.dust.length = 0;
+    var ringFr = [0.45, 0.72, 1.0], ringN = [0.24, 0.34, 0.42];
+    for (var ri = 0; ri < 3; ri++) {
+      var cnt = Math.round(n * ringN[ri]);
+      for (var i = 0; i < cnt; i++) {
+        P.parts.push({ ring: ri, ang: (i / cnt) * Math.PI * 2, rad: P.R * ringFr[ri], dir: ri % 2 === 0 ? 1 : -1, spd: 0.55 + ri * 0.22, ph: Math.random() * Math.PI * 2, glow: 0, ox: 0, oy: 0, x: 0, y: 0 });
+      }
+    }
+    var dn = Math.round(n * 0.18);
+    for (var j = 0; j < dn; j++) {
+      P.dust.push({ x: Math.random() * w, y: Math.random() * h, vx: (Math.random() - 0.5) * 0.008, vy: (Math.random() - 0.5) * 0.008, glow: 0 });
+    }
+    // 背景を一度塗ってトレイル残像をリセット
+    pCtx.fillStyle = '#0B1220';
+    pCtx.fillRect(0, 0, w, h);
+  }
+
+  function drawParticles(now) {
+    if (!P.running) return;
+    P.raf = requestAnimationFrame(drawParticles);
+    if (!pCtx) return;
+    var dt = Math.min(50, P.last ? (now - P.last) : 16);
+    P.last = now;
+    var t = now * 0.001;
+    // トレイル用に半透明で塗る
+    pCtx.fillStyle = 'rgba(9, 14, 27, 0.34)';
+    pCtx.fillRect(0, 0, P.w, P.h);
+    if (!reducedMotion) P.rot += dt * 0.00011 + P.rotBoost * dt * 0.06;
+    P.rotBoost *= 0.94;
+    P.ox *= 0.88; P.oy *= 0.88;
+    if (P.flash > 0) P.flash = Math.max(0, P.flash - dt * 0.004);
+    var burstK = 0;
+    if (P.burst > 0) { burstK = P.burst * P.burst * 90; P.burst = Math.max(0, P.burst - dt * 0.0028); }
+    var mainCol = P.flash > 0.3 ? 'rgba(248, 113, 113, 0.9)' : 'rgba(125, 211, 252, 0.85)';
+    var lineCol = P.flash > 0.3 ? 'rgba(248, 113, 113, 0.10)' : 'rgba(56, 189, 248, 0.10)';
+    var i, p, x, y, dx, dy, d2;
+    // リング接続線
+    pCtx.beginPath();
+    pCtx.strokeStyle = lineCol; pCtx.lineWidth = 1;
+    var prevRing = -1;
+    for (i = 0; i < P.parts.length; i++) {
+      p = P.parts[i];
+      if (p.ring !== prevRing) { if (prevRing !== -1) pCtx.closePath(); pCtx.moveTo(p.x, p.y); prevRing = p.ring; }
+      else pCtx.lineTo(p.x, p.y);
+    }
+    if (prevRing !== -1) pCtx.closePath();
+    pCtx.stroke();
+    // 粒子位置の更新と描画
+    pCtx.beginPath();
+    for (i = 0; i < P.parts.length; i++) {
+      p = P.parts[i];
+      var a = p.ang + P.rot * p.dir * p.spd;
+      var rr = p.rad * (1 + 0.03 * Math.sin(t * 0.9 + p.ph)) + burstK;
+      x = P.cx + Math.cos(a) * rr + P.ox;
+      y = P.cy + Math.sin(a) * rr * 0.92 + P.oy;
+      if (P.tActive) {
+        dx = x - P.tx; dy = y - P.ty; d2 = dx * dx + dy * dy;
+        if (d2 < 8100 && d2 > 0.01) { var d = Math.sqrt(d2), f = (1 - d / 90) * 13; p.ox += (dx / d) * f * 0.35; p.oy += (dy / d) * f * 0.35; p.glow = 1; }
+      }
+      p.ox *= 0.86; p.oy *= 0.86;
+      p.x = x + p.ox; p.y = y + p.oy;
+      var s = p.glow > 0.4 ? 3 : 2;
+      pCtx.rect(p.x - s / 2, p.y - s / 2, s, s);
+      if (p.glow > 0) p.glow = Math.max(0, p.glow - dt * 0.003);
+    }
+    pCtx.fillStyle = mainCol;
+    pCtx.fill();
+    // 塵（ダスト）
+    pCtx.beginPath();
+    for (i = 0; i < P.dust.length; i++) {
+      p = P.dust[i];
+      p.x += p.vx * dt; p.y += p.vy * dt;
+      if (p.x < 0) p.x += P.w; if (p.x > P.w) p.x -= P.w;
+      if (p.y < 0) p.y += P.h; if (p.y > P.h) p.y -= P.h;
+      pCtx.rect(p.x, p.y, 1.6, 1.6);
+    }
+    pCtx.fillStyle = 'rgba(148, 197, 255, 0.4)';
+    pCtx.fill();
+    // 進捗リング（解除モード時）
+    if (lockView === 'gesture' && gMode === 'unlock' && gestureLen() > 0) {
+      var total = gestureLen(), seg = (Math.PI * 2) / total, Rr = P.R + 30;
+      pCtx.beginPath();
+      pCtx.arc(P.cx, P.cy, Rr, 0, Math.PI * 2);
+      pCtx.strokeStyle = 'rgba(125, 211, 252, 0.14)'; pCtx.lineWidth = 3; pCtx.stroke();
+      pCtx.strokeStyle = '#38BDF8';
+      for (i = 0; i < gProgress.length; i++) {
+        pCtx.beginPath();
+        pCtx.arc(P.cx, P.cy, Rr, -Math.PI / 2 + i * seg + 0.06, -Math.PI / 2 + (i + 1) * seg - 0.06);
+        pCtx.stroke();
+      }
+    }
+  }
+
+  function startParticles() {
+    if (!pCtx || P.running) return;
+    sizeParticles();
+    P.running = true; P.last = 0;
+    P.raf = requestAnimationFrame(drawParticles);
+  }
+  function stopParticles() {
+    P.running = false;
+    if (P.raf) cancelAnimationFrame(P.raf);
+    P.raf = 0;
+  }
+  var resizeTimer = null;
+  window.addEventListener('resize', function() {
+    if (!P.running) return;
+    if (resizeTimer) clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(sizeParticles, 150);
+  });
+  document.addEventListener('visibilitychange', function() {
+    if (document.hidden) stopParticles();
+    else if (!lockOverlay.hidden) startParticles();
+  });
+
+  if (lockState.enabled) {
+    if (hasGesture()) openGestureUnlock(false);
+    else openLockScreen(hasPattern() ? 'unlock' : 'setup1', false);
+  }
   else lockOverlay.hidden = true;
 
   // ==========================================
@@ -1181,11 +1628,21 @@ document.addEventListener('DOMContentLoaded', function() {
   function dateStr(d) { return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
   function jpDate(iso) { if (!iso) return '未設定'; var p = iso.split('-'); return Number(p[1]) + '/' + Number(p[2]); }
 
-  $('manualLockBtn').onclick = function() { openLockScreen(hasPattern() ? 'unlock' : 'setup1', !hasPattern()); };
+  $('manualLockBtn').onclick = function() {
+    if (hasGesture()) openGestureUnlock(true);
+    else openLockScreen(hasPattern() ? 'unlock' : 'setup1', !hasPattern());
+  };
   $('changePatternBtn').onclick = function() { openLockScreen('setup1', true); };
+  $('changeGestureBtn').onclick = function() { openGestureEnroll(true); };
+  $('deleteGestureBtn').onclick = function() {
+    if (!hasGesture()) return;
+    delete lockState.gestureHashes;
+    saveLockState();
+    showToast('ジェスチャーを削除しました');
+  };
   $('togglePatternBtn').onclick = function() {
-    if (lockState.enabled && hasPattern()) { lockState.enabled = false; saveLockState(); showToast('ロックをオフにしました'); }
-    else if (!hasPattern()) openLockScreen('setup1', true);
+    if (lockState.enabled && hasAnyLock()) { lockState.enabled = false; saveLockState(); showToast('ロックをオフにしました'); }
+    else if (!hasAnyLock()) openLockScreen('setup1', true);
     else { lockState.enabled = true; saveLockState(); showToast('ロックをオンにしました'); }
   };
   updateLockSettingsUI();
@@ -2149,6 +2606,10 @@ document.addEventListener('DOMContentLoaded', function() {
       curPage = k;
       if (dirtyPages[k]) renderPage(k);
       window.scrollTo(0, 0);
+      // iOS で固定タブバーの位置が古いスクロール状態のまま残る場合があるため、
+      // 切替直後にレイアウトを確定させてバーを画面下端へ再配置させる
+      var tabsEl = document.querySelector('.tabs');
+      if (tabsEl) requestAnimationFrame(function() { void tabsEl.offsetHeight; });
     };
   });
 
