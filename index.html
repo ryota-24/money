@@ -141,8 +141,9 @@ header::after {
   pointer-events: none;
 }
 .header-left { display: flex; align-items: center; gap: 8px; }
-header h1 { margin: 0; font-size: 18px; font-weight: 800; letter-spacing: -0.02em; text-shadow: 0 0 16px rgba(var(--accent-rgb), 0.45); }
+header h1 { margin: 0; font-size: 16px; font-weight: 800; letter-spacing: 0.16em; text-shadow: 0 0 16px rgba(var(--accent-rgb), 0.45); white-space: nowrap; }
 .net-pill {
+  letter-spacing: 0.12em;
   font-size: 10px;
   font-weight: 800;
   padding: 3px 8px;
@@ -894,6 +895,66 @@ body.core-lock { overflow: hidden; }
   .core-hint { animation: none; }
   .sheet-details.anim-in { animation: none; }
 }
+
+/* ==========================================
+   デザインパック v10：JARVIS風の共通演出
+   起動シーケンス / HUDヘッダー（時計＋月ゲージ）/ 音声波形 /
+   セクション見出し（.hud-sec）/ 下部ステータスバンド / ロック画面バンド
+   枠線は使わず、フェードするヘアライン・グロー・文字だけで構成する。
+   ========================================== */
+/* --- 起動シーケンス --- */
+.boot-overlay { position: fixed; inset: 0; z-index: 10000; background: #020409; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; transition: opacity 0.2s ease; }
+.boot-overlay[hidden] { display: none; }
+.boot-overlay.done { opacity: 0; pointer-events: none; }
+.boot-ring { width: 84px; height: 84px; border-radius: 50%; border: 2px solid rgba(var(--accent-rgb), 0.15); border-top-color: var(--accent); box-shadow: 0 0 24px rgba(var(--accent-rgb), 0.35), inset 0 0 18px rgba(var(--accent-rgb), 0.18); animation: bootSpin 0.9s linear infinite; }
+@keyframes bootSpin { to { transform: rotate(360deg); } }
+.boot-title { font-size: 13px; font-weight: 800; letter-spacing: 0.42em; text-indent: 0.42em; color: #E9F3FB; text-shadow: 0 0 16px rgba(var(--accent-rgb), 0.6); }
+.boot-status { font-size: 11px; letter-spacing: 0.3em; text-indent: 0.3em; color: var(--sub); animation: coreHintPulse 1.2s ease-in-out infinite; min-height: 15px; }
+
+/* --- HUDヘッダー（時計＋月ゲージ） --- */
+.header-right { display: flex; align-items: center; gap: 10px; }
+.hud-clockbox { display: flex; align-items: center; gap: 8px; }
+.hud-clock { font-size: 13px; font-weight: 800; letter-spacing: 0.12em; color: var(--ink); font-variant-numeric: tabular-nums; text-shadow: 0 0 12px rgba(var(--accent-rgb), 0.5); }
+.hud-gauge { position: relative; width: 34px; height: 34px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: conic-gradient(var(--accent) 0%, rgba(255, 255, 255, 0.10) 0%); flex: none; }
+.hud-gauge::after { content: ""; position: absolute; inset: 3px; border-radius: 50%; background: #060D1A; }
+.hud-gauge-pct { position: relative; z-index: 1; font-size: 8px; font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; }
+
+/* --- 音声波形（ホーム） --- */
+.wave-strip { display: flex; align-items: center; justify-content: center; gap: 3px; height: 26px; margin-top: 16px; }
+.wave-strip i { width: 3px; height: 22px; border-radius: 2px; background: var(--accent); opacity: 0.45; transform: scaleY(0.3); transform-origin: center; animation: waveIdle 2.6s ease-in-out infinite; box-shadow: 0 0 6px rgba(var(--accent-rgb), 0.5); }
+@keyframes waveIdle { 0%, 100% { transform: scaleY(0.25); } 50% { transform: scaleY(0.55); } }
+.wave-strip.active i { opacity: 1; animation-name: waveAct; animation-duration: 0.7s; }
+@keyframes waveAct { 0%, 100% { transform: scaleY(0.2); } 50% { transform: scaleY(1); } }
+.page.revealed .wave-strip { display: none; }
+
+/* --- セクション見出しのHUD化（共有クラス .hud-sec を .card-title に付与） --- */
+.card-title.hud-sec { letter-spacing: 0.16em; text-shadow: 0 0 14px rgba(var(--accent-rgb), 0.35); padding-bottom: 9px; background-image: linear-gradient(90deg, rgba(var(--accent-rgb), 0.5), rgba(var(--accent-rgb), 0) 78%); background-size: 100% 1px; background-repeat: no-repeat; background-position: 0 100%; }
+.hud-ro { font-size: 10px; font-weight: 800; letter-spacing: 0.1em; color: var(--accent); white-space: nowrap; font-variant-numeric: tabular-nums; text-shadow: none; }
+details.acc summary.hud-sec { letter-spacing: 0.14em; }
+
+/* --- 詳細表示時：コンパクトコア両脇の目盛り装飾 --- */
+.page.revealed .core-stage::after { content: ""; position: absolute; top: 56px; left: 50%; transform: translateX(-50%); width: min(94vw, 440px); height: 14px; background: repeating-linear-gradient(90deg, rgba(var(--accent-rgb), 0.45) 0 1px, transparent 1px 14px); -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 24%, transparent 38%, transparent 62%, #000 76%, #000 100%); mask-image: linear-gradient(90deg, #000 0%, #000 24%, transparent 38%, transparent 62%, #000 76%, #000 100%); pointer-events: none; }
+
+/* --- 下部ステータスバンド（コアのみ表示の時だけ） --- */
+.core-band { position: fixed; left: 0; right: 0; bottom: calc(66px + env(safe-area-inset-bottom, 0px)); z-index: 25; display: flex; justify-content: center; padding: 6px 84px 6px 16px; box-sizing: border-box; pointer-events: none; transition: opacity 0.3s ease; }
+.core-band[hidden] { display: none; }
+.core-band.fade { opacity: 0; }
+.core-band::before, .core-band::after { content: ""; position: absolute; left: 10%; right: 10%; height: 1px; background: linear-gradient(90deg, transparent, rgba(var(--accent-rgb), 0.4), transparent); }
+.core-band::before { top: 0; }
+.core-band::after { bottom: 0; }
+.core-band span { font-size: 10px; font-weight: 700; letter-spacing: 0.26em; color: var(--sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* --- ロック画面の上下バンド（ステージ形状は変えない：絶対配置） --- */
+#lockOverlay .lock-brand { position: absolute; top: calc(env(safe-area-inset-top, 0px) + 20px); left: 0; right: 0; text-align: center; pointer-events: none; z-index: 1; }
+.lock-brand-title { font-size: 12px; font-weight: 800; letter-spacing: 0.44em; text-indent: 0.44em; color: #CFFAFE; text-shadow: 0 0 14px rgba(103, 232, 249, 0.65); }
+.lock-brand-clock { margin-top: 5px; font-size: 11px; font-weight: 700; letter-spacing: 0.3em; text-indent: 0.3em; color: #7DD3FC; font-variant-numeric: tabular-nums; }
+#lockOverlay .lock-foot { position: absolute; bottom: calc(env(safe-area-inset-bottom, 0px) + 18px); left: 0; right: 0; text-align: center; font-size: 9px; font-weight: 700; letter-spacing: 0.4em; text-indent: 0.4em; color: rgba(148, 197, 232, 0.75); pointer-events: none; z-index: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  .boot-ring { animation: none; }
+  .wave-strip i { animation: none; }
+  .core-band { transition: none; }
+}
 </style>
 </head>
 <body data-sheet="home">
@@ -901,6 +962,7 @@ body.core-lock { overflow: hidden; }
 <!-- ロック画面（回転ジェスチャー／パターン） -->
 <div class="lock-overlay" id="lockOverlay">
   <canvas id="particleCanvas"></canvas>
+  <div class="lock-brand"><div class="lock-brand-title">K A K E I　S Y S T E M</div><div class="lock-brand-clock" id="lockClock">--:--</div></div>
   <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#60A5FA" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
   <div class="lock-title" id="lockTitle">パターンを入力</div>
   <div class="lock-sub" id="lockSub">指でなぞってロックを解除</div>
@@ -932,9 +994,16 @@ body.core-lock { overflow: hidden; }
     <button type="button" class="lock-link" id="lockSpinBtn" hidden>回転ジェスチャーで開く</button>
     <button type="button" class="lock-link" id="lockTapBtn" hidden>光点タップで開く</button>
   </div>
+  <div class="lock-foot">S E C U R E　L O C K</div>
 </div>
 
 <!-- 光点タップ登録の提案（他の方法で解除した後に表示） -->
+<div class="boot-overlay" id="bootOverlay" hidden>
+  <div class="boot-ring"></div>
+  <div class="boot-title">K A K E I　S Y S T E M</div>
+  <div class="boot-status" id="bootStatus">システム起動中</div>
+</div>
+
 <div class="gesture-prompt" id="tapPrompt" hidden>
   <div style="font-weight:800;margin-bottom:4px">新しい解除方法があります</div>
   <div style="font-size:12px;color:#94A3B8">リングの光点を順番にタップして開く「光点タップ」を登録できます。タップの順番が、あなただけの鍵になります。</div>
@@ -949,13 +1018,19 @@ body.core-lock { overflow: hidden; }
     <h1 id="pageTitle">ホーム</h1>
     <span class="net-pill" id="netStatusPill">オンライン</span>
   </div>
-  <div style="display:flex;gap:8px">
+  <div class="header-right">
+    <div class="hud-clockbox">
+      <span class="hud-clock" id="hudClock">--:--</span>
+      <span class="hud-gauge" id="monthGauge"><span class="hud-gauge-pct" id="monthGaugePct">0%</span></span>
+    </div>
+    <div style="display:flex;gap:8px">
     <button type="button" class="icon-btn" id="manualLockBtn" aria-label="ロック">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
     </button>
     <button type="button" class="icon-btn" id="themeBtn" aria-label="テーマ切替">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
     </button>
+    </div>
   </div>
 </header>
 
@@ -981,6 +1056,7 @@ body.core-lock { overflow: hidden; }
       </div>
       <div class="core-hint" id="coreHint-home">タップで詳細</div>
       <button type="button" class="core-collapse-btn" id="homeCollapseBtn">▲ しまう</button>
+      <div class="wave-strip" id="waveStrip" aria-hidden="true"></div>
     </div>
     <div class="sheet-details" id="details-home" hidden>
     <div class="hud-shell">
@@ -1112,7 +1188,7 @@ body.core-lock { overflow: hidden; }
        ========================================== -->
   <div class="page" id="p-card" hidden>
     <div class="card">
-      <div class="card-title"><span>利用状況の入力（クレカ / 現金）</span></div>
+      <div class="card-title"><span>利用状況の入力（クレカ / 現金）</span><span class="hud-ro" id="roCardNext"></span></div>
       <div class="seg" id="payMethodSeg">
         <button type="button" data-m="card" class="on">クレカ払い</button>
         <button type="button" data-m="cash">現金払い</button>
@@ -1227,7 +1303,7 @@ body.core-lock { overflow: hidden; }
     </div>
 
     <div class="card">
-      <div class="card-title"><span>利用履歴・立て替え経費一覧</span></div>
+      <div class="card-title"><span>利用履歴・立て替え経費一覧</span><span class="hud-ro" id="roCardLog"></span></div>
       <div id="logList"></div>
     </div>
   </div>
@@ -1307,7 +1383,7 @@ body.core-lock { overflow: hidden; }
     </div>
 
     <div class="card">
-      <div class="card-title"><span>毎月の固定費・口座引き落とし</span></div>
+      <div class="card-title"><span>毎月の固定費・口座引き落とし</span><span class="hud-ro" id="roFixedTot"></span></div>
       <div id="fixedBox"></div>
     </div>
 
@@ -1379,7 +1455,7 @@ body.core-lock { overflow: hidden; }
     </div>
 
     <div class="card">
-      <div class="card-title"><span>保有銘柄一覧・編集</span></div>
+      <div class="card-title"><span>保有銘柄一覧・編集</span><span class="hud-ro" id="roNisaCount"></span></div>
       <div id="nisaHoldBox"></div>
     </div>
   </div>
@@ -1465,6 +1541,8 @@ body.core-lock { overflow: hidden; }
     <span>奨学金</span>
   </button>
 </nav>
+
+<div class="core-band" id="coreBand" hidden><span id="coreBandText">—</span></div>
 
 <!-- クイック入力オーブ -->
 <div class="orb-backdrop" id="orbBackdrop" hidden></div>
@@ -4596,6 +4674,163 @@ document.addEventListener('DOMContentLoaded', function() {
     state: coreState, metrics: coreMetrics, sheetCores: sheetCores,
     setRevealed: setRevealed, toggleRevealed: toggleRevealed,
     refitCore: refitCore, fitSheetCore: fitSheetCore, setCoreMetric: setCoreMetric
+  };
+
+  // ==========================================
+  // デザインパック v10：JARVIS風の共通演出
+  // 起動シーケンス / HUDヘッダー（時計＋月ゲージ）/ 音声波形 /
+  // セクション見出しリードアウト / 下部ステータスバンド
+  // 既存のデータ・保存・ロック照合ロジックには一切触れない。
+  // ==========================================
+  var DP = { bootPlayed: false, bandMsgs: [], bandIdx: 0 };
+
+  function dpPad(n) { return ('0' + n).slice(-2); }
+  function dpMonthProgress(now) {
+    var dim = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    return Math.round(now.getDate() / dim * 100);
+  }
+  function dpTickClock() {
+    var now = new Date();
+    var t = dpPad(now.getHours()) + ':' + dpPad(now.getMinutes());
+    var c1 = $('hudClock'); if (c1) c1.textContent = t;
+    var c2 = $('lockClock'); if (c2) c2.textContent = t;
+    var pct = dpMonthProgress(now);
+    var g = $('monthGauge'), gp = $('monthGaugePct');
+    if (g) g.style.background = 'conic-gradient(var(--accent) ' + pct + '%, rgba(255,255,255,0.10) ' + pct + '%)';
+    if (gp) gp.textContent = pct + '%';
+  }
+  setInterval(dpTickClock, 1000);
+  dpTickClock();
+
+  // セクション見出しへ共有クラスを付与（全シート共通のHUD化）
+  document.querySelectorAll('.card-title').forEach(function(t) { t.classList.add('hud-sec'); });
+  document.querySelectorAll('details.acc summary').forEach(function(t) { t.classList.add('hud-sec'); });
+
+  // 音声波形（ホーム）：バーを生成し、認識中／読み上げ中は激しく動かす
+  (function buildWave() {
+    var ws = $('waveStrip');
+    if (!ws) return;
+    for (var i = 0; i < 24; i++) {
+      var b = document.createElement('i');
+      b.style.animationDelay = (i * 0.09) + 's';
+      ws.appendChild(b);
+    }
+  })();
+  function dpSyncWave() {
+    var ws = $('waveStrip');
+    if (!ws) return;
+    var active = false;
+    var wrap = $('hudCoreWrap');
+    if (wrap && wrap.classList.contains('listening')) active = true;
+    if (!active && 'speechSynthesis' in window) {
+      try { active = !!window.speechSynthesis.speaking; } catch (e) {}
+    }
+    ws.classList.toggle('active', active);
+  }
+  setInterval(dpSyncWave, 300);
+  if (window.MutationObserver && $('hudCoreWrap')) {
+    new MutationObserver(dpSyncWave).observe($('hudCoreWrap'), { attributes: true, attributeFilter: ['class'] });
+  }
+
+  // セクション見出しの右端リードアウト（実データのみ）
+  function dpRefreshReadouts() {
+    var d = computeHomeData();
+    var r1 = $('roCardNext'); if (r1) r1.textContent = d.cardEv ? ('次回引落 ' + yen(d.cardEv.amount)) : '引落予定なし';
+    var r2 = $('roCardLog'); if (r2) r2.textContent = (S.log ? S.log.length : 0) + ' 件';
+    var r3 = $('roFixedTot'); if (r3) r3.textContent = '合計 ' + yen(d.fixedTot);
+    var r4 = $('roNisaCount'); if (r4) r4.textContent = (S.nisaH ? S.nisaH.length : 0) + ' 銘柄';
+  }
+
+  // 下部ステータスバンド（コアのみ表示の時だけ出す）
+  function dpBuildBandMsgs() {
+    var d = computeHomeData();
+    var wd = ['日', '月', '火', '水', '木', '金', '土'][d.now.getDay()];
+    var date = d.now.getFullYear() + '.' + dpPad(d.now.getMonth() + 1) + '.' + dpPad(d.now.getDate()) + ' ' + wd;
+    DP.bandMsgs = [
+      date + '　／　資産総額 ' + yen(d.totalAssets),
+      '今月の収支 ' + (d.net >= 0 ? '+' : '') + yen(d.net) + ' の見込み',
+      'NISA 評価額 ' + yen(d.nisaTot)
+    ];
+    if (d.cardEv) DP.bandMsgs.push('カード次回引落 ' + (d.cardEv.date.getMonth() + 1) + '/' + d.cardEv.date.getDate() + ' ・ ' + yen(d.cardEv.amount));
+    DP.bandIdx = 0;
+    var bt = $('coreBandText');
+    if (bt) bt.textContent = DP.bandMsgs[0];
+  }
+  function dpSyncBand() {
+    var band = $('coreBand');
+    if (!band) return;
+    var show = lockOverlay.hidden && !orbOpen && coreState[curPage] && !coreState[curPage].revealed;
+    var tp = $('tapPrompt');
+    if (tp && !tp.hidden) show = false;
+    band.hidden = !show;
+  }
+  setInterval(function() {
+    var band = $('coreBand');
+    if (!band || band.hidden || DP.bandMsgs.length < 2 || document.hidden) return;
+    band.classList.add('fade');
+    setTimeout(function() {
+      DP.bandIdx = (DP.bandIdx + 1) % DP.bandMsgs.length;
+      var bt = $('coreBandText');
+      if (bt) bt.textContent = DP.bandMsgs[DP.bandIdx];
+      band.classList.remove('fade');
+    }, 320);
+  }, 4500);
+  document.querySelectorAll('.tab-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() { setTimeout(dpSyncBand, 0); });
+  });
+  if (window.MutationObserver) {
+    new MutationObserver(dpSyncBand).observe(lockOverlay, { attributes: true, attributeFilter: ['hidden'] });
+    var tpn = $('tapPrompt');
+    if (tpn) new MutationObserver(dpSyncBand).observe(tpn, { attributes: true, attributeFilter: ['hidden'] });
+  }
+  var _dpSetRevealed = setRevealed;
+  setRevealed = function(k, on) { _dpSetRevealed(k, on); dpSyncBand(); };
+  var _dpOpenOrb = openOrbPanel;
+  openOrbPanel = function() { _dpOpenOrb(); dpSyncBand(); };
+  var _dpCloseOrb = closeOrbPanel;
+  closeOrbPanel = function() { _dpCloseOrb(); dpSyncBand(); };
+  var _dpRenderAll = renderAll;
+  renderAll = function() { _dpRenderAll(); dpRefreshReadouts(); dpBuildBandMsgs(); dpSyncBand(); };
+
+  // 起動シーケンス（コールドスタート時のみ。ロック有効時は解除後に再生）
+  function dpBootDone(iv) {
+    if (iv) clearInterval(iv);
+    try { sessionStorage.setItem('kakei-boot-v10', '1'); } catch (e) {}
+    var bo = $('bootOverlay');
+    if (bo) {
+      bo.classList.add('done');
+      setTimeout(function() { bo.hidden = true; bo.classList.remove('done'); }, 200);
+    }
+  }
+  function playBootSequence() {
+    if (DP.bootPlayed) return;
+    DP.bootPlayed = true;
+    try { if (sessionStorage.getItem('kakei-boot-v10')) return; } catch (e) {}
+    var bo = $('bootOverlay'), bs = $('bootStatus');
+    if (!bo || reducedMotion) { dpBootDone(0); return; }
+    bo.hidden = false;
+    var steps = ['システム起動中', 'データを読み込み中', 'オンライン'];
+    var i = 0;
+    if (bs) bs.textContent = steps[0];
+    var iv = setInterval(function() {
+      i++;
+      if (i < steps.length) { if (bs) bs.textContent = steps[i]; }
+      else dpBootDone(iv);
+    }, 400);
+    bo.onclick = function() { dpBootDone(iv); };
+  }
+  var _dpOnUnlocked = onAppUnlocked;
+  onAppUnlocked = function(via) { _dpOnUnlocked(via); playBootSequence(); };
+  if (lockOverlay.hidden) playBootSequence();
+  dpBuildBandMsgs();
+  dpRefreshReadouts();
+  dpSyncBand();
+
+  window.__designPack = {
+    played: function() { return DP.bootPlayed; },
+    monthProgress: dpMonthProgress,
+    syncBand: dpSyncBand, syncWave: dpSyncWave,
+    playBoot: playBootSequence, refresh: dpRefreshReadouts
   };
 
   renderAll();
