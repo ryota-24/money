@@ -106,7 +106,16 @@ body {
 .s-dot.dim { opacity: 0.35; }
 .s-steps { font-size: 12px; color: #A5F3FC; min-height: 18px; text-align: center; margin-top: 8px; letter-spacing: 0.04em; }
 @keyframes lockShake { 0%, 100% { transform: translateX(0); } 20% { transform: translateX(-10px); } 40% { transform: translateX(10px); } 60% { transform: translateX(-6px); } 80% { transform: translateX(6px); } }
-.lock-overlay.shake #spinStage, .lock-overlay.shake #patternCanvas { animation: lockShake 0.4s ease; }
+.lock-overlay.shake #spinStage, .lock-overlay.shake #tapStage, .lock-overlay.shake #patternCanvas { animation: lockShake 0.4s ease; }
+
+/* 光点タップ（リング上の光点を順番にタップして解除） */
+#tapStage { display: flex; flex-direction: column; align-items: center; width: min(88vw, 380px); }
+.tap-space { position: relative; width: 100%; height: min(50vh, 370px); touch-action: manipulation; }
+.tap-node { position: absolute; width: 48px; height: 48px; margin: -24px 0 0 -24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.tap-node span { width: 15px; height: 15px; border-radius: 50%; background: radial-gradient(circle, #FFFFFF 0%, #A5F3FC 45%, rgba(103,232,249,0.15) 100%); box-shadow: 0 0 12px rgba(103,232,249,0.85), 0 0 26px rgba(103,232,249,0.35); animation: tapNodePulse 2.6s ease-in-out infinite; transition: transform 0.15s, box-shadow 0.15s, background 0.15s; pointer-events: none; }
+@keyframes tapNodePulse { 0%, 100% { transform: scale(1); opacity: 0.85; } 50% { transform: scale(1.18); opacity: 1; } }
+.tap-node.on span { transform: scale(1.65); background: radial-gradient(circle, #FFFFFF 0%, #CFFAFE 55%, rgba(103,232,249,0.3) 100%); box-shadow: 0 0 18px rgba(165,243,252,1), 0 0 44px rgba(103,232,249,0.65); animation: none; opacity: 1; }
+.tap-node.err span { background: radial-gradient(circle, #FFFFFF 0%, #FCA5A5 50%, rgba(248,113,113,0.2) 100%); box-shadow: 0 0 16px rgba(248,113,113,0.9), 0 0 30px rgba(248,113,113,0.4); animation: none; opacity: 1; }
 .gesture-prompt { position: fixed; left: 16px; right: 16px; bottom: calc(100px + env(safe-area-inset-bottom, 0px)); z-index: 9000; background: #0A1728; color: #E2E8F0; border: none; border-radius: 16px; padding: 14px 16px; box-shadow: inset 0 1px 0 rgba(125, 211, 252, 0.35), 0 12px 32px rgba(0, 0, 0, 0.45); }
 
 /* ヘッダー */
@@ -797,21 +806,31 @@ details.acc[open] summary { border-bottom: 1px solid var(--line); }
       <button type="button" class="lock-link" id="spinDoneBtn" hidden>この内容で確定</button>
     </div>
   </div>
+  <div id="tapStage" hidden>
+    <div class="tap-space" id="tapSpace"></div>
+    <div class="s-dots" id="tapDots"></div>
+    <div class="s-steps" id="tapSteps"></div>
+    <div class="lock-actions">
+      <button type="button" class="lock-link" id="tapClearBtn" hidden>クリア</button>
+      <button type="button" class="lock-link" id="tapDoneBtn" hidden>この内容で確定</button>
+    </div>
+  </div>
   <div class="lock-actions">
     <button type="button" class="lock-link" id="lockCancelBtn" hidden>キャンセル</button>
     <button type="button" class="lock-link" id="lockResetBtn">パターンをリセット</button>
     <button type="button" class="lock-link" id="lockPatternBtn" hidden>パターンで開く</button>
     <button type="button" class="lock-link" id="lockSpinBtn" hidden>回転ジェスチャーで開く</button>
+    <button type="button" class="lock-link" id="lockTapBtn" hidden>光点タップで開く</button>
   </div>
 </div>
 
-<!-- 回転ジェスチャー登録の提案（パターン解除後に表示） -->
-<div class="gesture-prompt" id="spinPrompt" hidden>
+<!-- 光点タップ登録の提案（他の方法で解除した後に表示） -->
+<div class="gesture-prompt" id="tapPrompt" hidden>
   <div style="font-weight:800;margin-bottom:4px">新しい解除方法があります</div>
-  <div style="font-size:12px;color:#94A3B8">リングを指で回して開く「回転ジェスチャー」を登録できます。回転の組み合わせが、あなただけの鍵になります。</div>
+  <div style="font-size:12px;color:#94A3B8">リングの光点を順番にタップして開く「光点タップ」を登録できます。タップの順番が、あなただけの鍵になります。</div>
   <div style="display:flex;gap:10px;margin-top:10px">
-    <button type="button" class="btn" id="spinPromptYes" style="flex:1">登録する</button>
-    <button type="button" class="btn ghost" id="spinPromptNo" style="flex:1;background:rgba(255,255,255,0.08);color:#E2E8F0;border-color:rgba(255,255,255,0.25)">あとで</button>
+    <button type="button" class="btn" id="tapPromptYes" style="flex:1">登録する</button>
+    <button type="button" class="btn ghost" id="tapPromptNo" style="flex:1;background:rgba(255,255,255,0.08);color:#E2E8F0;border-color:rgba(255,255,255,0.25)">あとで</button>
   </div>
 </div>
 
@@ -1194,13 +1213,18 @@ details.acc[open] summary { border-bottom: 1px solid var(--line); }
           <button type="button" class="btn ghost" id="togglePatternBtn">ロックをオフ</button>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-          <span class="sub" style="font-weight:700">回転ジェスチャー</span>
-          <span class="badge est" id="spinStatusBadge">未登録</span>
+          <span class="sub" style="font-weight:700">光点タップ</span>
+          <span class="badge est" id="tapStatusBadge">未登録</span>
         </div>
         <div class="grid2" style="margin-bottom:14px">
-          <button type="button" class="btn ghost" id="changeSpinBtn">回転ジェスチャー登録・変更</button>
-          <button type="button" class="btn ghost" id="deleteSpinBtn">回転ジェスチャー削除</button>
+          <button type="button" class="btn ghost" id="changeTapBtn">タップ登録・変更</button>
+          <button type="button" class="btn ghost" id="deleteTapBtn">タップ削除</button>
         </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span class="sub" style="font-weight:700">回転ジェスチャー（旧方式）</span>
+          <span class="badge est" id="spinStatusBadge">未登録</span>
+        </div>
+        <button type="button" class="btn ghost full" id="deleteSpinBtn" style="margin-top:0;margin-bottom:14px">回転ジェスチャー削除</button>
         <div class="sub" style="font-weight:700;margin-bottom:6px">全データのJSONバックアップ・復元</div>
         <div class="grid2">
           <button type="button" class="btn ghost" id="exportJsonBtn">JSONをコピー</button>
@@ -1423,8 +1447,12 @@ document.addEventListener('DOMContentLoaded', function() {
   // 回転ジェスチャー（回転の組み合わせ）：平文は保存せず、接頭辞ごとのハッシュ配列だけを保持する
   function hasSpin() { return !!(lockState.spinHashes && lockState.spinHashes.length >= 2); }
   function spinLen() { return hasSpin() ? lockState.spinHashes.length : 0; }
-  function hasAnyLock() { return hasPattern() || hasSpin(); }
+  // 光点タップ（リング上の光点を順番にタップ）：回転と同じく接頭辞ごとのハッシュ配列だけを保持する
+  function hasTap() { return !!(lockState.tapHashes && lockState.tapHashes.length >= 4); }
+  function tapLen() { return hasTap() ? lockState.tapHashes.length : 0; }
+  function hasAnyLock() { return hasPattern() || hasSpin() || hasTap(); }
   function hashSpinPrefix(steps) { return hashPattern('S:' + steps.join(',')); }
+  function hashTapPrefix(seq) { return hashPattern('T:' + seq.join(',')); }
   function hashPattern(code) {
     var msg = 'kakei-lock:' + code;
     if (window.crypto && crypto.subtle && crypto.subtle.digest) {
@@ -1434,6 +1462,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     return Promise.resolve(fallbackHash(msg));
   }
+  window.__hashPattern = hashPattern;
   function fallbackHash(s) { var x = 0x811c9dc5; for (var i = 0; i < s.length; i++) { x ^= s.charCodeAt(i); x = (x * 0x01000193) >>> 0; } return 'fnv' + x.toString(16); }
   function saveLockState() { try { localStorage.setItem(LOCK_KEY, JSON.stringify(lockState)); } catch (e) {} updateLockSettingsUI(); }
 
@@ -1509,14 +1538,14 @@ document.addEventListener('DOMContentLoaded', function() {
     stopParticles();
   }
 
-  // ロック解除に成功した共通処理。パターンで開いた場合は回転ジェスチャー登録を提案する
+  // ロック解除に成功した共通処理。光点タップ未登録なら、どの方法で開いても登録を提案する
   function onAppUnlocked(via) {
     hideLockOverlay();
-    if (via === 'pattern' && !hasSpin()) showSpinPrompt();
+    if (via !== 'tap' && !hasTap()) showTapPrompt();
   }
 
-  function showSpinPrompt() {
-    var p = $('spinPrompt');
+  function showTapPrompt() {
+    var p = $('tapPrompt');
     if (p) p.hidden = false;
   }
 
@@ -1551,7 +1580,7 @@ document.addEventListener('DOMContentLoaded', function() {
       if (code === tempPattern) {
         hashPattern(code).then(function(hx) { lockState.patternHash = hx; legacyPattern = ''; lockState.enabled = true; saveLockState(); });
         lineStatus = 'ok'; drawPattern();
-        setTimeout(function() { hideLockOverlay(); selectedDots = []; lineStatus = 'normal'; showToast('パターンを登録しました'); if (!hasSpin()) showSpinPrompt(); }, 300);
+        setTimeout(function() { hideLockOverlay(); selectedDots = []; lineStatus = 'normal'; showToast('パターンを登録しました'); if (!hasTap()) showTapPrompt(); }, 300);
       } else {
         lineStatus = 'error'; lockSub.className = 'lock-sub err'; lockSub.textContent = '一致しません。最初からやり直してください'; drawPattern();
         setTimeout(function() { openLockScreen('setup1', canCancelSetup); }, 700);
@@ -1588,13 +1617,19 @@ document.addEventListener('DOMContentLoaded', function() {
       else { gb.textContent = '未登録'; gb.className = 'badge est'; }
     }
     if (gd) gd.hidden = !hasSpin();
+    var tb = $('tapStatusBadge'), td = $('deleteTapBtn');
+    if (tb) {
+      if (hasTap()) { tb.textContent = '登録済み'; tb.className = 'badge fix'; }
+      else { tb.textContent = '未登録'; tb.className = 'badge est'; }
+    }
+    if (td) td.hidden = !hasTap();
   }
 
   // ==========================================
   // ==========================================
   // 回転ジェスチャー（回転の組み合わせで解除）
   // ==========================================
-  var lockView = 'pattern';           // 'pattern' | 'spin'
+  var lockView = 'pattern';           // 'pattern' | 'spin' | 'tap'
   var sMode = 'unlock';               // 'unlock' | 'enroll1' | 'enroll2'
   var sProgress = [];                 // 入力済みステップ（'CW1' / 'CCW2' などのトークン）
   var sVerified = 0;                  // 照合済みステップ数（非同期ハッシュ照合の競合対策）
@@ -1605,6 +1640,10 @@ document.addEventListener('DOMContentLoaded', function() {
   var spinDots = $('spinDots'), spinSteps = $('spinSteps');
   var spinDoneBtn = $('spinDoneBtn'), spinClearBtn = $('spinClearBtn');
   var lockPatternBtn = $('lockPatternBtn'), lockSpinBtn = $('lockSpinBtn');
+  var tapStage = $('tapStage'), tapSpace = $('tapSpace');
+  var tapDots = $('tapDots'), tapStepsEl = $('tapSteps');
+  var tapDoneBtn = $('tapDoneBtn'), tapClearBtn = $('tapClearBtn');
+  var lockTapBtn = $('lockTapBtn');
 
   var SPIN_MIN_DEG = 150;             // ステップとして認める最小回転量
   var SPIN_FULL_DEG = 270;            // これを超えたら「1回転」バケット
@@ -1652,8 +1691,10 @@ document.addEventListener('DOMContentLoaded', function() {
     lockView = view;
     patternStage.hidden = (view !== 'pattern');
     spinStage.hidden = (view !== 'spin');
-    lockPatternBtn.hidden = !(view === 'spin' && hasPattern());
-    lockSpinBtn.hidden = !(view === 'pattern' && hasSpin());
+    tapStage.hidden = (view !== 'tap');
+    lockPatternBtn.hidden = !(view !== 'pattern' && hasPattern());
+    lockSpinBtn.hidden = !(view !== 'spin' && hasSpin());
+    lockTapBtn.hidden = !(view !== 'tap' && hasTap());
     lockResetBtn.hidden = !(view === 'pattern' && lockMode === 'unlock');
   }
 
@@ -1810,8 +1851,7 @@ document.addEventListener('DOMContentLoaded', function() {
   spinClearBtn.addEventListener('click', function() { sProgress = []; renderSpinUI(); });
   lockPatternBtn.addEventListener('click', function() { openLockScreen('unlock', canCancelSetup); });
   lockSpinBtn.addEventListener('click', function() { openSpinUnlock(canCancelSetup); });
-  $('spinPromptYes').addEventListener('click', function() { $('spinPrompt').hidden = true; openSpinEnroll(true); });
-  $('spinPromptNo').addEventListener('click', function() { $('spinPrompt').hidden = true; });
+  lockTapBtn.addEventListener('click', function() { openTapUnlock(canCancelSetup); });
 
   // 銀河の回転トラッキング（spin表示中のみ。ボタン上の開始は無視）
   var spinSamples = new Float32Array(4096);
@@ -1884,6 +1924,249 @@ document.addEventListener('DOMContentLoaded', function() {
     if (lockView !== 'spin') return;
     spinDragEnd();
   });
+
+  // ==========================================
+  // 光点タップ（リング上の光点を順番にタップして解除）
+  // 照合は回転と同じ接頭辞ハッシュ方式で、平文は保存しない。
+  // 光点はDOM要素として配置し、ブラウザ自身のヒットテストに任せる（当たり判定 48px）。
+  // ==========================================
+  var TAP_NODES = 8;                  // リング上の光点の数
+  var TAP_MIN = 4, TAP_MAX = 6;       // 登録できるタップ数
+  var TAP_HIT_DIST = 42;              // 背景タップ時に光点として拾う最大距離(px)
+  var tMode = 'unlock';               // 'unlock' | 'enroll1' | 'enroll2'
+  var tProgress = [];                 // 照合済みの入力列（光点インデックス）
+  var tVerified = 0;                  // 照合済みタップ数
+  var tTempSeq = null;                // 登録1回目の入力（メモリ上のみ）
+  var tUnlocked = false;              // 解除演出中フラグ
+  var tQueue = [];                    // 照合待ちタップ（連続タップを順番に処理する）
+  var tChecking = false;              // ハッシュ照合中フラグ
+  var tCenters = [];                  // 光点の中心座標（tapSpace左上基準）
+  var tapNodeEls = [];
+
+  // 純粋関数：幅w・高hの領域に置く光点の中心座標（真上から時計回り。半径は描画側の R と一致させる）
+  function tapNodeCenters(w, h) {
+    var cx = w / 2, cy = h / 2, R = Math.min(w, h) * 0.44, pts = [];
+    for (var i = 0; i < TAP_NODES; i++) {
+      var a = -Math.PI / 2 + i * Math.PI * 2 / TAP_NODES;
+      pts.push({ x: cx + Math.cos(a) * R, y: cy + Math.sin(a) * R });
+    }
+    return pts;
+  }
+  // 純粋関数：座標に最も近い光点のインデックス（maxDist以内に無ければ -1）
+  function nearestTapNode(x, y, centers, maxDist) {
+    var best = -1, bestD = Infinity;
+    for (var i = 0; i < centers.length; i++) {
+      var d = Math.hypot(x - centers[i].x, y - centers[i].y);
+      if (d < bestD) { bestD = d; best = i; }
+    }
+    return bestD <= maxDist ? best : -1;
+  }
+  window.__tapNodeCenters = tapNodeCenters;
+  window.__nearestTapNode = nearestTapNode;
+
+  function layoutTapNodes() {
+    var w = tapSpace.clientWidth || 320, h = tapSpace.clientHeight || 370;
+    tCenters = tapNodeCenters(w, h);
+    for (var i = 0; i < tapNodeEls.length; i++) {
+      tapNodeEls[i].style.left = tCenters[i].x + 'px';
+      tapNodeEls[i].style.top = tCenters[i].y + 'px';
+    }
+  }
+
+  function buildTapNodes() {
+    for (var i = 0; i < TAP_NODES; i++) {
+      (function(idx) {
+        var n = el('div', 'tap-node');
+        var s = el('span');
+        s.style.animationDelay = (idx * 0.32) + 's';
+        n.appendChild(s);
+        n.addEventListener('touchstart', function(e) { e.preventDefault(); e.stopPropagation(); handleTapNode(idx); }, { passive: false });
+        n.addEventListener('click', function(e) { e.stopPropagation(); handleTapNode(idx); });
+        tapSpace.appendChild(n);
+        tapNodeEls.push(n);
+      })(i);
+    }
+    // 光点の少し外側をタップしても拾えるよう、背景タップは最寄りの光点に解決する
+    tapSpace.addEventListener('touchstart', function(e) {
+      if (lockView !== 'tap') return;
+      var t = e.changedTouches && e.changedTouches[0];
+      if (!t) return;
+      var rect = tapSpace.getBoundingClientRect();
+      var idx = nearestTapNode(t.clientX - rect.left, t.clientY - rect.top, tCenters, TAP_HIT_DIST);
+      if (idx >= 0) { e.preventDefault(); handleTapNode(idx); }
+    }, { passive: false });
+    tapSpace.addEventListener('click', function(e) {
+      if (lockView !== 'tap') return;
+      var rect = tapSpace.getBoundingClientRect();
+      var idx = nearestTapNode(e.clientX - rect.left, e.clientY - rect.top, tCenters, TAP_HIT_DIST);
+      if (idx >= 0) handleTapNode(idx);
+    });
+  }
+  buildTapNodes();
+
+  function renderTapUI() {
+    tapDots.innerHTML = '';
+    var total = (tMode === 'unlock') ? tapLen() : (tMode === 'enroll2' && tTempSeq ? tTempSeq.length : Math.max(tProgress.length, TAP_MIN));
+    for (var i = 0; i < total; i++) {
+      var dot = el('div', 's-dot');
+      dot.classList.add(i < tProgress.length ? 'on' : 'dim');
+      tapDots.appendChild(dot);
+    }
+    tapStepsEl.textContent = tProgress.map(function(n) { return n + 1; }).join(' → ');
+    if (tMode === 'unlock') {
+      tapDoneBtn.hidden = true;
+      tapClearBtn.hidden = true;
+    } else {
+      tapDoneBtn.hidden = !(tMode === 'enroll1' && tProgress.length >= TAP_MIN);
+      tapClearBtn.hidden = !(tProgress.length > 0);
+    }
+  }
+
+  function openTapUnlock(allowCancel) {
+    tMode = 'unlock'; tProgress = []; tVerified = 0; tTempSeq = null; tUnlocked = false;
+    tQueue = []; tChecking = false;
+    canCancelSetup = !!allowCancel;
+    lockCancelBtn.hidden = !allowCancel;
+    lockTitle.textContent = '光点タップで解除';
+    lockSub.className = 'lock-sub';
+    lockSub.textContent = 'リングの光点を、登録した順番にタップしてください';
+    lockOverlay.hidden = false;
+    showLockView('tap');
+    renderTapUI();
+    startParticles();
+    if (pCtx) sizeParticles();
+    layoutTapNodes();
+  }
+
+  function openTapEnroll(allowCancel) {
+    tMode = 'enroll1'; tProgress = []; tTempSeq = null; tUnlocked = false;
+    tQueue = []; tChecking = false;
+    canCancelSetup = !!allowCancel;
+    lockCancelBtn.hidden = !allowCancel;
+    lockTitle.textContent = hasTap() ? '光点タップを変更' : '光点タップを登録';
+    lockSub.className = 'lock-sub';
+    lockSub.textContent = 'リングの光点を4〜6個、順番にタップしてください';
+    lockOverlay.hidden = false;
+    showLockView('tap');
+    renderTapUI();
+    startParticles();
+    if (pCtx) sizeParticles();
+    layoutTapNodes();
+  }
+
+  function tapNodeFlare(idx, isErr) {
+    var n = tapNodeEls[idx];
+    if (!n) return;
+    n.classList.remove('on'); n.classList.remove('err');
+    void n.offsetWidth;
+    n.classList.add(isErr ? 'err' : 'on');
+    setTimeout(function() { n.classList.remove('on'); n.classList.remove('err'); }, 420);
+  }
+  function tapFlare() { P.flare = 1; P.pulse = 1; }
+
+  function tapError(msg) {
+    lockSub.className = 'lock-sub err';
+    lockSub.textContent = msg;
+    lockOverlay.classList.remove('shake'); void lockOverlay.offsetWidth; lockOverlay.classList.add('shake');
+    lockOverlay.classList.add('flash-err');
+    flashGalaxy();
+    setTimeout(function() { lockOverlay.classList.remove('flash-err'); lockOverlay.classList.remove('shake'); }, 450);
+    tProgress = [];
+    tVerified = 0;
+    tQueue = [];
+    renderTapUI();
+  }
+
+  function tapUnlockSuccess() {
+    tUnlocked = true;
+    lockSub.className = 'lock-sub ok';
+    lockSub.textContent = '解除しました';
+    warpGalaxy();
+    setTimeout(function() { onAppUnlocked('tap'); }, 580);
+  }
+
+  function finalizeTapEnroll() {
+    var seq = tTempSeq.slice(), hashes = [], i = 0;
+    function next() {
+      if (i >= seq.length) {
+        lockState.tapHashes = hashes;
+        lockState.enabled = true;
+        saveLockState();
+        hideLockOverlay();
+        showToast('光点タップを登録しました');
+        return;
+      }
+      hashTapPrefix(seq.slice(0, i + 1)).then(function(hx) { hashes.push(hx); i++; next(); });
+    }
+    next();
+  }
+
+  // unlock時の照合はキューで直列化する（素早い連続タップでも順番がずれないように）
+  function processTapQueue() {
+    if (tChecking || !tQueue.length) return;
+    var idx = tQueue.shift();
+    tProgress.push(idx);
+    var stepIdx = tProgress.length - 1;
+    var stepPrefix = tProgress.slice();
+    renderTapUI();
+    tChecking = true;
+    hashTapPrefix(stepPrefix).then(function(hx) {
+      tChecking = false;
+      if (tUnlocked) { tQueue = []; return; }
+      if (stepIdx !== tVerified) { tQueue = []; return; } // リセット済み
+      if (hx === lockState.tapHashes[stepIdx]) {
+        tVerified++;
+        tapFlare();
+        if (tVerified >= tapLen()) { tQueue = []; tapUnlockSuccess(); return; }
+        lockSub.className = 'lock-sub';
+        lockSub.textContent = 'あと ' + (tapLen() - tVerified) + ' 個';
+        processTapQueue();
+      } else {
+        tQueue = [];
+        tapNodeFlare(idx, true);
+        tapError('順番が違います');
+      }
+    });
+  }
+
+  function handleTapNode(idx) {
+    if (tUnlocked || lockOverlay.hidden || lockView !== 'tap') return;
+    if (tMode === 'unlock') {
+      if (!hasTap() || tProgress.length + tQueue.length >= tapLen()) return;
+      tapNodeFlare(idx, false);
+      tQueue.push(idx);
+      processTapQueue();
+    } else if (tMode === 'enroll1') {
+      if (tProgress.length < TAP_MAX) { tProgress.push(idx); tapNodeFlare(idx, false); renderTapUI(); }
+    } else if (tMode === 'enroll2') {
+      tProgress.push(idx);
+      tapNodeFlare(idx, false);
+      renderTapUI();
+      if (tProgress.length >= tTempSeq.length) {
+        var same = tProgress.length === tTempSeq.length && tProgress.every(function(v, j) { return v === tTempSeq[j]; });
+        if (same) finalizeTapEnroll();
+        else {
+          tMode = 'enroll1'; tTempSeq = null; tProgress = [];
+          lockTitle.textContent = '光点タップを登録';
+          tapError('一致しません。最初からやり直してください');
+        }
+      }
+    }
+  }
+
+  tapDoneBtn.addEventListener('click', function() {
+    if (tMode !== 'enroll1' || tProgress.length < TAP_MIN) return;
+    tTempSeq = tProgress.slice();
+    tProgress = [];
+    tMode = 'enroll2';
+    lockTitle.textContent = '確認のためもう一度';
+    lockSub.className = 'lock-sub';
+    lockSub.textContent = '同じ順番をもう一度タップしてください';
+    renderTapUI();
+  });
+  tapClearBtn.addEventListener('click', function() { tProgress = []; renderTapUI(); });
+  $('tapPromptYes').addEventListener('click', function() { $('tapPrompt').hidden = true; openTapEnroll(true); });
+  $('tapPromptNo').addEventListener('click', function() { $('tapPrompt').hidden = true; });
 
   // ==========================================
   // JARVIS風サーキュラーHUD描画（ロック画面／ホーム共通ヘルパー）
@@ -2068,8 +2351,8 @@ document.addEventListener('DOMContentLoaded', function() {
     pCtx.setTransform(dprC, 0, 0, dprC, 0, 0);
     P.w = w; P.h = h;
     P.cx = w / 2; P.cy = h * 0.46; P.R = Math.min(w, h) * 0.36;
-    var space = $('spinSpace');
-    if (space && !spinStage.hidden) {
+    var space = !spinStage.hidden ? $('spinSpace') : (!tapStage.hidden ? $('tapSpace') : null);
+    if (space) {
       var rc = space.getBoundingClientRect();
       if (rc && rc.width > 0) {
         P.cx = rc.left + rc.width / 2;
@@ -2195,7 +2478,7 @@ document.addEventListener('DOMContentLoaded', function() {
   window.addEventListener('resize', function() {
     if (!P.running) return;
     if (resizeTimer) clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(sizeParticles, 150);
+    resizeTimer = setTimeout(function() { sizeParticles(); if (lockView === 'tap') layoutTapNodes(); }, 150);
   });
   document.addEventListener('visibilitychange', function() {
     if (document.hidden) stopParticles();
@@ -2203,7 +2486,8 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   if (lockState.enabled) {
-    if (hasSpin() && pCtx) openSpinUnlock(false);
+    if (hasTap()) openTapUnlock(false);
+    else if (hasSpin() && pCtx) openSpinUnlock(false);
     else openLockScreen(hasPattern() ? 'unlock' : 'setup1', false);
   }
   else lockOverlay.hidden = true;
@@ -2281,11 +2565,18 @@ document.addEventListener('DOMContentLoaded', function() {
   function jpDate(iso) { if (!iso) return '未設定'; var p = iso.split('-'); return Number(p[1]) + '/' + Number(p[2]); }
 
   $('manualLockBtn').onclick = function() {
-    if (hasSpin() && pCtx) openSpinUnlock(true);
+    if (hasTap()) openTapUnlock(true);
+    else if (hasSpin() && pCtx) openSpinUnlock(true);
     else openLockScreen(hasPattern() ? 'unlock' : 'setup1', !hasPattern());
   };
   $('changePatternBtn').onclick = function() { openLockScreen('setup1', true); };
-  $('changeSpinBtn').onclick = function() { openSpinEnroll(true); };
+  $('changeTapBtn').onclick = function() { openTapEnroll(true); };
+  $('deleteTapBtn').onclick = function() {
+    if (!hasTap()) return;
+    delete lockState.tapHashes;
+    saveLockState();
+    showToast('光点タップを削除しました');
+  };
   $('deleteSpinBtn').onclick = function() {
     if (!hasSpin()) return;
     delete lockState.spinHashes;
@@ -3622,13 +3913,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
   function syncOrbVisibility() {
     if (!orbBtn) return;
-    var lockUp = !lockOverlay.hidden || !$('spinPrompt').hidden;
+    var lockUp = !lockOverlay.hidden || !$('tapPrompt').hidden;
     orbBtn.hidden = lockUp || orbOpen;
   }
   if (window.MutationObserver) {
     var orbObs = new MutationObserver(syncOrbVisibility);
     orbObs.observe(lockOverlay, { attributes: true, attributeFilter: ['hidden'] });
-    var spEl = $('spinPrompt');
+    var spEl = $('tapPrompt');
     if (spEl) orbObs.observe(spEl, { attributes: true, attributeFilter: ['hidden'] });
   }
 
