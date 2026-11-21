@@ -44,8 +44,8 @@ body[data-sheet="fixed"] { --accent: #FB923C; --accent-rgb: 251, 146, 60; }
 body[data-sheet="nisa"] { --accent: #FACC15; --accent-rgb: 250, 204, 21; }
 body[data-sheet="scholar"] { --accent: #38BDF8; --accent-rgb: 56, 189, 248; }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html, body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
-input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
+* { -webkit-user-select: none !important; user-select: none !important; -webkit-touch-callout: none !important; }
+input, textarea, select, [contenteditable="true"] { -webkit-user-select: text !important; user-select: text !important; -webkit-touch-callout: default !important; }
 [hidden] { display: none !important; }
 /* iOS Safari ではドキュメントがビューポートより短いページだと固定要素の
    基準矩形（ICB）の高さがコンテンツ基準になり、bottom:0 のタブバーが
@@ -5084,6 +5084,13 @@ doTapCycle();
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
   window.addEventListener('load', function() { navigator.serviceWorker.register('sw.js').catch(function() {}); });
 }
+</script>
+<script>
+(function() {
+  function editable(t) { return t && t.closest && t.closest('input, textarea, select, [contenteditable="true"]'); }
+  document.addEventListener('selectstart', function(e) { if (!editable(e.target)) e.preventDefault(); });
+  document.addEventListener('contextmenu', function(e) { if (!editable(e.target)) e.preventDefault(); });
+})();
 </script>
 </body>
 </html>
