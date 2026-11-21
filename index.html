@@ -1135,15 +1135,25 @@ document.addEventListener('DOMContentLoaded', function() {
 
   try { var raw = localStorage.getItem(KEY); if (raw) S = Object.assign(S, JSON.parse(raw)); } catch (e) {}
 
-  if (!Array.isArray(S.extraIncomes)) S.extraIncomes = [];
-  if (!Array.isArray(S.log)) S.log = [];
-  if (!Array.isArray(S.tempIncomes)) S.tempIncomes = [];
-  if (!Array.isArray(S.nisaH)) S.nisaH = [];
-  if (!Array.isArray(S.bonuses)) S.bonuses = [];
-  if (!Array.isArray(S.scholarships) || !S.scholarships.length) S.scholarships = JSON.parse(JSON.stringify(DEFAULT_SCHOLARSHIPS));
-  if (!S.schProfile) S.schProfile = JSON.parse(JSON.stringify(DEFAULT_SIM_PROFILE));
-  if (S.closingDay === undefined) S.closingDay = 15;
-  if (!S.payMonthOffset) S.payMonthOffset = 1;
+  function normalizeState() {
+    if (!S.months || typeof S.months !== 'object' || Array.isArray(S.months)) S.months = {};
+    if (!Array.isArray(S.extraIncomes)) S.extraIncomes = [];
+    if (!Array.isArray(S.log)) S.log = [];
+    if (!Array.isArray(S.tempIncomes)) S.tempIncomes = [];
+    if (!Array.isArray(S.nisaH)) S.nisaH = [];
+    if (!Array.isArray(S.bonuses)) S.bonuses = [];
+    if (!Array.isArray(S.scholarships) || !S.scholarships.length) S.scholarships = JSON.parse(JSON.stringify(DEFAULT_SCHOLARSHIPS));
+    if (!S.schProfile) S.schProfile = JSON.parse(JSON.stringify(DEFAULT_SIM_PROFILE));
+    if (S.closingDay === undefined) S.closingDay = 15;
+    if (!S.payMonthOffset) S.payMonthOffset = 1;
+    S.nisaH = S.nisaH.filter(function(h) { return h && typeof h === 'object'; });
+    S.nisaH.forEach(function(h) {
+      if (!h.id) h.id = uid();
+      if (h.n == null) h.n = '';
+      h.bal = num(h.bal); h.mo = num(h.mo); h.rate = num(h.rate);
+    });
+  }
+  normalizeState();
 
   function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
   var saveTimer = null;
@@ -1730,6 +1740,23 @@ document.addEventListener('DOMContentLoaded', function() {
     return f;
   }
 
+  function buildBonusForm() {
+    var f = el('div', 'ed');
+    var ni = el('input'); ni.value = bDraft.n; ni.oninput = function() { bDraft.n = ni.value; };
+    var g = el('div', 'grid2');
+    var ms = el('select'); for (var m = 1; m <= 12; m++) { var o = el('option', '', m + '月'); o.value = m; ms.appendChild(o); }
+    ms.value = String(bDraft.m); ms.onchange = function() { bDraft.m = Number(ms.value); };
+    var ds = el('select'); for (var d = 1; d <= 31; d++) { var od = el('option', '', d + '日'); od.value = d; ds.appendChild(od); }
+    ds.value = String(bDraft.d); ds.onchange = function() { bDraft.d = Number(ds.value); };
+    g.appendChild(ms); g.appendChild(ds);
+    var ai = el('input'); ai.inputMode = 'numeric'; bindMoneyInput(ai, bDraft.a, function(v) { bDraft.a = v; });
+    var btns = el('div', 'grid2');
+    var sv = el('button', 'btn', '保存'); sv.onclick = function() { var idx = S.bonuses.findIndex(function(x) { return x.id === bDraft.id; }); if (idx >= 0) S.bonuses[idx] = bDraft; else S.bonuses.push(bDraft); bId = null; save(); renderAll(); };
+    var cn = el('button', 'btn ghost', 'キャンセル'); cn.onclick = function() { bId = null; renderFixedSheet(); };
+    btns.appendChild(sv); btns.appendChild(cn); f.appendChild(ni); f.appendChild(g); f.appendChild(ai); f.appendChild(btns);
+    return f;
+  }
+
   function renderFixedSheet() {
     if (document.activeElement !== $('set_bank')) $('set_bank').value = fmtMoney(S.bank);
     if (document.activeElement !== $('set_cash')) $('set_cash').value = fmtMoney(S.cash);
@@ -1788,21 +1815,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     var bBox = $('bonusBox'); bBox.innerHTML = '';
     S.bonuses.forEach(function(b) {
-      if (bId === b.id) {
-        var f = el('div', 'ed');
-        var ni = el('input'); ni.value = bDraft.n; ni.oninput = function() { bDraft.n = ni.value; };
-        var g = el('div', 'grid2');
-        var ms = el('select'); for (var m = 1; m <= 12; m++) { var o = el('option', '', m + '月'); o.value = m; ms.appendChild(o); }
-        ms.value = String(bDraft.m); ms.onchange = function() { bDraft.m = Number(ms.value); };
-        var ds = el('select'); for (var d = 1; d <= 31; d++) { var od = el('option', '', d + '日'); od.value = d; ds.appendChild(od); }
-        ds.value = String(bDraft.d); ds.onchange = function() { bDraft.d = Number(ds.value); };
-        g.appendChild(ms); g.appendChild(ds);
-        var ai = el('input'); ai.inputMode = 'numeric'; bindMoneyInput(ai, bDraft.a, function(v) { bDraft.a = v; });
-        var btns = el('div', 'grid2');
-        var sv = el('button', 'btn', '保存'); sv.onclick = function() { var idx = S.bonuses.findIndex(function(x) { return x.id === bDraft.id; }); if (idx >= 0) S.bonuses[idx] = bDraft; else S.bonuses.push(bDraft); bId = null; save(); renderAll(); };
-        var cn = el('button', 'btn ghost', 'キャンセル'); cn.onclick = function() { bId = null; renderFixedSheet(); };
-        btns.appendChild(sv); btns.appendChild(cn); f.appendChild(ni); f.appendChild(g); f.appendChild(ai); f.appendChild(btns); bBox.appendChild(f); return;
-      }
+      if (bId === b.id) { bBox.appendChild(buildBonusForm()); return; }
       var r = el('div', 'row');
       r.innerHTML = '<div><strong>' + esc(b.n) + '</strong><div class="sub">毎年 ' + b.m + '月' + b.d + '日 支給</div></div>';
       var right = el('div'); right.style.cssText = 'display:flex;align-items:center;gap:8px';
@@ -1810,6 +1823,7 @@ document.addEventListener('DOMContentLoaded', function() {
       var eb = el('button', 'btn-sm', '編集'); eb.onclick = function() { bDraft = clone(b); bId = b.id; bNew = false; renderFixedSheet(); };
       right.appendChild(eb); r.appendChild(right); bBox.appendChild(r);
     });
+    if (bId && bNew) bBox.appendChild(buildBonusForm());
     if (!bId) {
       var ab = el('button', 'btn ghost full', '＋ ボーナスを追加');
       ab.onclick = function() { bDraft = { id: uid(), n: '臨時賞与', m: 12, d: 15, a: 0 }; bId = bDraft.id; bNew = true; renderFixedSheet(); };
@@ -1886,6 +1900,26 @@ document.addEventListener('DOMContentLoaded', function() {
   // ==========================================
   // シート4：NISAシート
   // ==========================================
+  function buildNisaForm() {
+    var f = el('div', 'ed');
+    var ni = el('input'); ni.placeholder = '銘柄名'; ni.value = hDraft.n; ni.oninput = function() { hDraft.n = ni.value; };
+    var g = el('div', 'grid2');
+    var bi = el('input'); bi.inputMode = 'numeric'; bi.placeholder = '現在評価額'; bindMoneyInput(bi, hDraft.bal, function(v) { hDraft.bal = v; });
+    var mi = el('input'); mi.inputMode = 'numeric'; mi.placeholder = '毎月積立額'; bindMoneyInput(mi, hDraft.mo, function(v) { hDraft.mo = v; });
+    g.appendChild(bi); g.appendChild(mi);
+    var ri = el('input'); ri.type = 'number'; ri.step = '0.1'; ri.placeholder = '想定年利(%)'; ri.value = hDraft.rate; ri.oninput = function() { hDraft.rate = num(ri.value); };
+    var btns = el('div', 'grid2');
+    var sv = el('button', 'btn', '保存'); sv.onclick = function() { var idx = S.nisaH.findIndex(function(x) { return x.id === hDraft.id; }); if (idx >= 0) S.nisaH[idx] = hDraft; else S.nisaH.push(hDraft); hId = null; save(); renderNisaSheet(); showToast('保存しました'); };
+    var cn = el('button', 'btn ghost', 'キャンセル'); cn.onclick = function() { hId = null; renderNisaSheet(); };
+    btns.appendChild(sv); btns.appendChild(cn); f.appendChild(ni); f.appendChild(g); f.appendChild(ri); f.appendChild(btns);
+    if (!hNew) {
+      var dl = el('button', 'btn danger full', '削除');
+      dl.onclick = function() { S.nisaH = S.nisaH.filter(function(x) { return x.id !== hDraft.id; }); hId = null; save(); renderNisaSheet(); };
+      f.appendChild(dl);
+    }
+    return f;
+  }
+
   function renderNisaSheet() {
     var tot = sum(S.nisaH, function(h) { return h.bal || 0; });
     var moTot = sum(S.nisaH, function(h) { return h.mo || 0; });
@@ -1898,25 +1932,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     var box = $('nisaHoldBox'); box.innerHTML = '';
     S.nisaH.forEach(function(h) {
-      if (hId === h.id) {
-        var f = el('div', 'ed');
-        var ni = el('input'); ni.placeholder = '銘柄名'; ni.value = hDraft.n; ni.oninput = function() { hDraft.n = ni.value; };
-        var g = el('div', 'grid2');
-        var bi = el('input'); bi.inputMode = 'numeric'; bi.placeholder = '現在評価額'; bindMoneyInput(bi, hDraft.bal, function(v) { hDraft.bal = v; });
-        var mi = el('input'); mi.inputMode = 'numeric'; mi.placeholder = '毎月積立額'; bindMoneyInput(mi, hDraft.mo, function(v) { hDraft.mo = v; });
-        g.appendChild(bi); g.appendChild(mi);
-        var ri = el('input'); ri.type = 'number'; ri.step = '0.1'; ri.placeholder = '想定年利(%)'; ri.value = hDraft.rate; ri.oninput = function() { hDraft.rate = num(ri.value); };
-        var btns = el('div', 'grid2');
-        var sv = el('button', 'btn', '保存'); sv.onclick = function() { var idx = S.nisaH.findIndex(function(x) { return x.id === hDraft.id; }); if (idx >= 0) S.nisaH[idx] = hDraft; else S.nisaH.push(hDraft); hId = null; save(); renderNisaSheet(); showToast('保存しました'); };
-        var cn = el('button', 'btn ghost', 'キャンセル'); cn.onclick = function() { hId = null; renderNisaSheet(); };
-        btns.appendChild(sv); btns.appendChild(cn); f.appendChild(ni); f.appendChild(g); f.appendChild(ri); f.appendChild(btns);
-        if (!hNew) {
-          var dl = el('button', 'btn danger full', '削除');
-          dl.onclick = function() { S.nisaH = S.nisaH.filter(function(x) { return x.id !== hDraft.id; }); hId = null; save(); renderNisaSheet(); };
-          f.appendChild(dl);
-        }
-        box.appendChild(f); return;
-      }
+      if (hId === h.id) { box.appendChild(buildNisaForm()); return; }
       var r = el('div', 'row');
       r.innerHTML = '<div><strong>' + esc(h.n) + '</strong><div class="sub">積立 ' + yen(h.mo) + '/月 ・ 年利 ' + h.rate + '%</div></div>';
       var right = el('div'); right.style.cssText = 'display:flex;align-items:center;gap:8px';
@@ -1924,6 +1940,8 @@ document.addEventListener('DOMContentLoaded', function() {
       var eb = el('button', 'btn-sm', '編集'); eb.onclick = function() { hDraft = clone(h); hId = h.id; hNew = false; renderNisaSheet(); };
       right.appendChild(eb); r.appendChild(right); box.appendChild(r);
     });
+
+    if (hId && hNew) box.appendChild(buildNisaForm());
 
     if (!hId) {
       var ab = el('button', 'btn ghost full', '＋ NISA銘柄を追加');
@@ -2108,6 +2126,7 @@ document.addEventListener('DOMContentLoaded', function() {
       ['__proto__', 'constructor', 'prototype'].forEach(function(k) { delete parsed[k]; });
       if (parsed.months !== undefined && (typeof parsed.months !== 'object' || parsed.months === null || Array.isArray(parsed.months))) throw new Error('bad months');
       S = Object.assign(S, parsed);
+      normalizeState();
       save(); renderAll(); $('jsonAreaBox').style.display = 'none'; showToast('データを復元しました');
     } catch (e) { showToast('JSONの形式が正しくありません'); }
   };
@@ -2119,7 +2138,7 @@ document.addEventListener('DOMContentLoaded', function() {
   var curPage = 'status';
   var dirtyPages = { status: true, card: true, fixed: true, nisa: true, scholar: true };
   var PAGE_RENDERERS = { status: renderStatusSheet, card: renderCardSheet, fixed: renderFixedSheet, nisa: renderNisaSheet, scholar: renderScholarSheet };
-  function renderPage(k) { dirtyPages[k] = false; PAGE_RENDERERS[k](); }
+  function renderPage(k) { PAGE_RENDERERS[k](); dirtyPages[k] = false; }
 
   document.querySelectorAll('.tab-btn').forEach(function(btn) {
     btn.onclick = function() {
