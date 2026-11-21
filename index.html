@@ -12,46 +12,37 @@
 <title>家計・資産・奨学金 5シート管理</title>
 <style>
 :root {
-  --bg: #F1F5F9;
-  --surface: #FFFFFF;
-  --surface-sub: #F8FAFC;
-  --ink: #0F172A;
-  --sub: #64748B;
-  --line: #E2E8F0;
-  --primary: #0F172A;
-  --accent: #2563EB;
-  --ok: #059669;
-  --ok-bg: #ECFDF5;
-  --warn: #D97706;
-  --warn-bg: #FFFBEB;
-  --bad: #DC2626;
-  --bad-bg: #FEF2F2;
-  --purple: #7C3AED;
-  --purple-bg: rgba(124, 58, 237, 0.12);
-  --shadow: 0 2px 12px rgba(15, 23, 42, 0.05);
-  --radius: 18px;
-  color-scheme: light;
-}
-:root[data-theme="dark"] {
-  --bg: #0B1120;
-  --surface: #131C31;
-  --surface-sub: #1E293B;
-  --ink: #F8FAFC;
-  --sub: #94A3B8;
-  --line: #26334D;
-  --primary: #3B82F6;
-  --accent: #60A5FA;
+  /* JARVIS HUD 統一テーマ：全シート共通の深い青黒ベース。
+     シートごとの差は --accent / --accent-rgb の切り替えだけで付ける。
+     金額のプラス/マイナスは意味色（--ok / --bad）を全シート共通で維持する。 */
+  --bg: #050B16;
+  --surface: #0A1728;
+  --surface-sub: #0E1E35;
+  --ink: #E9F3FB;
+  --sub: #96ABC2;
+  --line: rgba(150, 190, 225, 0.10);
+  --primary: #22D3EE;
+  --accent: #22D3EE;
+  --accent-rgb: 34, 211, 238;
   --ok: #34D399;
-  --ok-bg: rgba(16, 185, 129, 0.15);
+  --ok-bg: rgba(52, 211, 153, 0.13);
   --warn: #FBBF24;
-  --warn-bg: rgba(245, 158, 11, 0.15);
+  --warn-bg: rgba(251, 191, 36, 0.13);
   --bad: #F87171;
-  --bad-bg: rgba(239, 68, 68, 0.15);
+  --bad-bg: rgba(248, 113, 113, 0.13);
   --purple: #A78BFA;
   --purple-bg: rgba(167, 139, 250, 0.15);
-  --shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  --shadow: 0 12px 32px rgba(0, 0, 0, 0.38);
+  --radius: 18px;
   color-scheme: dark;
 }
+/* シート別アクセント（JS の applySheetAccent と同じ値。初期描画用） */
+body[data-sheet="home"] { --accent: #22D3EE; --accent-rgb: 34, 211, 238; }
+body[data-sheet="status"] { --accent: #34D399; --accent-rgb: 52, 211, 153; }
+body[data-sheet="card"] { --accent: #A78BFA; --accent-rgb: 167, 139, 250; }
+body[data-sheet="fixed"] { --accent: #FB923C; --accent-rgb: 251, 146, 60; }
+body[data-sheet="nisa"] { --accent: #FACC15; --accent-rgb: 250, 204, 21; }
+body[data-sheet="scholar"] { --accent: #38BDF8; --accent-rgb: 56, 189, 248; }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 [hidden] { display: none !important; }
 /* iOS Safari ではドキュメントがビューポートより短いページだと固定要素の
@@ -64,7 +55,6 @@ body { min-height: 100%; min-height: 100dvh; }
 html, body {
   margin: 0;
   padding: 0;
-  background: var(--bg);
   color: var(--ink);
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Hiragino Sans", "Noto Sans JP", sans-serif;
   font-size: 15px;
@@ -72,6 +62,12 @@ html, body {
   font-variant-numeric: tabular-nums;
   overscroll-behavior-y: none;
   touch-action: manipulation;
+}
+html { background: #020409; }
+body {
+  background-color: #020409;
+  background-image: radial-gradient(130% 70% at 50% -10%, #0C2440 0%, #050B16 52%, #020409 100%);
+  background-attachment: fixed;
 }
 
 /* パターンロック */
@@ -95,7 +91,7 @@ html, body {
 .lock-sub.ok { color: #34D399; font-weight: 700; }
 #patternCanvas { width: 280px; height: 280px; touch-action: none; cursor: pointer; }
 .lock-actions { margin-top: 24px; display: flex; gap: 12px; }
-.lock-link { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: #CBD5E1; font-size: 12px; padding: 8px 14px; border-radius: 99px; cursor: pointer; }
+.lock-link { background: rgba(255,255,255,0.10); border: none; color: #CBD5E1; font-size: 12px; padding: 8px 14px; border-radius: 99px; cursor: pointer; }
 
 /* 宇宙パーティクル・ロック（回転ジェスチャー） */
 .lock-overlay { overflow: hidden; transition: background 0.25s; }
@@ -111,23 +107,32 @@ html, body {
 .s-steps { font-size: 12px; color: #A5F3FC; min-height: 18px; text-align: center; margin-top: 8px; letter-spacing: 0.04em; }
 @keyframes lockShake { 0%, 100% { transform: translateX(0); } 20% { transform: translateX(-10px); } 40% { transform: translateX(10px); } 60% { transform: translateX(-6px); } 80% { transform: translateX(6px); } }
 .lock-overlay.shake #spinStage, .lock-overlay.shake #patternCanvas { animation: lockShake 0.4s ease; }
-.gesture-prompt { position: fixed; left: 16px; right: 16px; bottom: calc(100px + env(safe-area-inset-bottom, 0px)); z-index: 9000; background: #0F172A; color: #E2E8F0; border: 1px solid rgba(125, 211, 252, 0.45); border-radius: 16px; padding: 14px 16px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45); }
+.gesture-prompt { position: fixed; left: 16px; right: 16px; bottom: calc(100px + env(safe-area-inset-bottom, 0px)); z-index: 9000; background: #0A1728; color: #E2E8F0; border: none; border-radius: 16px; padding: 14px 16px; box-shadow: inset 0 1px 0 rgba(125, 211, 252, 0.35), 0 12px 32px rgba(0, 0, 0, 0.45); }
 
 /* ヘッダー */
 header {
   position: sticky;
   top: 0;
   z-index: 20;
-  background: #F1F5F9;
+  background: rgba(4, 10, 20, 0.88);
   padding: calc(env(safe-area-inset-top, 12px) + 10px) 18px 12px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid var(--line);
+  border-bottom: none;
 }
-:root[data-theme="dark"] header { background: #0B1120; }
+header::after {
+  content: "";
+  position: absolute;
+  left: 6%;
+  right: 6%;
+  bottom: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(var(--accent-rgb), 0.45), transparent);
+  pointer-events: none;
+}
 .header-left { display: flex; align-items: center; gap: 8px; }
-header h1 { margin: 0; font-size: 18px; font-weight: 800; letter-spacing: -0.02em; }
+header h1 { margin: 0; font-size: 18px; font-weight: 800; letter-spacing: -0.02em; text-shadow: 0 0 16px rgba(var(--accent-rgb), 0.45); }
 .net-pill {
   font-size: 10px;
   font-weight: 800;
@@ -144,8 +149,8 @@ header h1 { margin: 0; font-size: 18px; font-weight: 800; letter-spacing: -0.02e
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  border: 1px solid var(--line);
-  background: var(--surface);
+  border: none;
+  background: rgba(255, 255, 255, 0.05);
   color: var(--ink);
   display: inline-flex;
   align-items: center;
@@ -157,25 +162,24 @@ header h1 { margin: 0; font-size: 18px; font-weight: 800; letter-spacing: -0.02e
 main {
   max-width: 520px;
   margin: 0 auto;
-  padding: 14px 16px calc(92px + env(safe-area-inset-bottom, 0px));
+  padding: 14px 16px calc(124px + env(safe-area-inset-bottom, 0px));
 }
 .card {
   background: var(--surface);
   border-radius: var(--radius);
   padding: 16px 18px;
   margin-bottom: 14px;
-  border: 1px solid var(--line);
-  box-shadow: var(--shadow);
+  border: none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), var(--shadow);
 }
 .hero-card {
-  background: linear-gradient(145deg, #0F172A 0%, #1E293B 100%);
+  background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.22) 0%, #060D1A 80%);
   color: #FFFFFF;
   border: none;
+  box-shadow: inset 0 1px 0 rgba(var(--accent-rgb), 0.25), var(--shadow);
 }
-.hero-card.emerald { background: linear-gradient(145deg, #064E3B 0%, #0F172A 100%); }
-.hero-card.indigo { background: linear-gradient(145deg, #1E1B4B 0%, #0F172A 100%); }
-.hero-label { font-size: 12px; font-weight: 600; color: #94A3B8; display: flex; align-items: center; justify-content: space-between; }
-.hero-amount { font-size: 34px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.15; margin: 6px 0 4px; }
+.hero-label { font-size: 12px; font-weight: 600; color: #A9C3DA; display: flex; align-items: center; justify-content: space-between; }
+.hero-amount { font-size: 34px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.15; margin: 6px 0 4px; text-shadow: 0 0 24px rgba(var(--accent-rgb), 0.35); }
 .hero-amount.neg { color: #FCA5A5; }
 .hero-sub { font-size: 12px; color: #CBD5E1; }
 
@@ -206,7 +210,7 @@ main {
   align-items: center;
   justify-content: space-between;
   background: var(--surface);
-  border: 1px solid var(--line);
+  border: none;
   border-radius: 14px;
   padding: 8px 12px;
   margin-bottom: 14px;
@@ -215,7 +219,7 @@ main {
 .month-nav strong { font-size: 16px; font-weight: 800; }
 .nav-btn {
   background: var(--surface-sub);
-  border: 1px solid var(--line);
+  border: none;
   color: var(--ink);
   border-radius: 10px;
   padding: 6px 12px;
@@ -227,7 +231,7 @@ main {
 
 /* タイル・行 */
 .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.tile { background: var(--surface-sub); border-radius: 14px; padding: 12px; border: 1px solid var(--line); }
+.tile { background: var(--surface-sub); border-radius: 14px; padding: 12px; border: none; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03); }
 .tile .k { font-size: 11px; color: var(--sub); font-weight: 600; }
 .tile .v { font-size: 17px; font-weight: 800; margin-top: 2px; }
 
@@ -237,9 +241,13 @@ main {
   justify-content: space-between;
   gap: 10px;
   padding: 10px 0;
-  border-top: 1px solid var(--line);
+  border-top: none;
+  background-image: linear-gradient(90deg, transparent, rgba(var(--accent-rgb), 0.15), transparent);
+  background-size: 100% 1px;
+  background-repeat: no-repeat;
+  background-position: top center;
 }
-.row:first-child { border-top: none; padding-top: 0; }
+.row:first-child { background-image: none; padding-top: 0; }
 .row:last-child { padding-bottom: 0; }
 
 .ev {
@@ -248,10 +256,14 @@ main {
   gap: 12px;
   align-items: center;
   padding: 10px 0;
-  border-top: 1px solid var(--line);
+  border-top: none;
+  background-image: linear-gradient(90deg, transparent, rgba(var(--accent-rgb), 0.15), transparent);
+  background-size: 100% 1px;
+  background-repeat: no-repeat;
+  background-position: top center;
 }
-.ev:first-child { border-top: none; padding-top: 0; }
-.db { background: var(--surface-sub); border: 1px solid var(--line); border-radius: 10px; text-align: center; padding: 5px 2px; line-height: 1.2; }
+.ev:first-child { background-image: none; padding-top: 0; }
+.db { background: var(--surface-sub); border: none; border-radius: 10px; text-align: center; padding: 5px 2px; line-height: 1.2; }
 .db b { display: block; font-size: 12px; font-weight: 800; }
 .db span { font-size: 10px; color: var(--sub); }
 
@@ -284,7 +296,7 @@ main {
   border-radius: 12px;
   padding: 3px;
   gap: 3px;
-  border: 1px solid var(--line);
+  border: none;
 }
 .seg button {
   background: transparent;
@@ -296,7 +308,7 @@ main {
   font-weight: 700;
   cursor: pointer;
 }
-.seg button.on { background: var(--surface); color: var(--ink); box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+.seg button.on { background: rgba(var(--accent-rgb), 0.20); color: var(--ink); box-shadow: none; }
 
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
@@ -307,21 +319,22 @@ input[type="text"], input[type="number"], input[type="date"], input[type="month"
   font-size: 15px;
   font-weight: 600;
   color: var(--ink);
-  background: var(--surface-sub);
-  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.045);
+  border: none;
   border-radius: 12px;
   padding: 9px 11px;
   margin-top: 4px;
   outline: none;
+  box-shadow: inset 0 -1px 0 rgba(var(--accent-rgb), 0.22);
 }
-input:focus, select:focus { border-color: var(--accent); background: var(--surface); }
+input:focus, select:focus, textarea:focus { background: rgba(255, 255, 255, 0.075); box-shadow: inset 0 -2px 0 var(--accent), 0 8px 20px -10px rgba(var(--accent-rgb), 0.6); }
 
 .chk-box {
   display: flex;
   align-items: center;
   gap: 8px;
   background: var(--surface-sub);
-  border: 1px solid var(--line);
+  border: none;
   border-radius: 12px;
   padding: 10px 12px;
   margin-top: 10px;
@@ -346,17 +359,17 @@ input:focus, select:focus { border-color: var(--accent); background: var(--surfa
   border: none;
   border-radius: 12px;
   padding: 11px 16px;
-  background: var(--primary);
-  color: #FFFFFF;
+  background: var(--accent);
+  color: #05121C;
   cursor: pointer;
 }
 .btn.full { width: 100%; margin-top: 10px; }
-.btn.ghost { background: var(--surface-sub); color: var(--ink); border: 1px solid var(--line); }
+.btn.ghost { background: rgba(255, 255, 255, 0.05); color: var(--ink); border: none; box-shadow: inset 0 -1px 0 rgba(var(--accent-rgb), 0.25); }
 .btn.danger { background: var(--bad-bg); color: var(--bad); }
 .btn-sm {
-  background: var(--surface-sub);
+  background: rgba(255, 255, 255, 0.06);
   color: var(--ink);
-  border: 1px solid var(--line);
+  border: none;
   border-radius: 8px;
   padding: 5px 9px;
   font-size: 11px;
@@ -368,8 +381,8 @@ input:focus, select:focus { border-color: var(--accent); background: var(--surfa
 
 .quick-chips { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
 .qchip {
-  background: var(--surface-sub);
-  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.05);
+  border: none;
   color: var(--ink);
   border-radius: 8px;
   padding: 5px 9px;
@@ -377,11 +390,12 @@ input:focus, select:focus { border-color: var(--accent); background: var(--surfa
   font-weight: 700;
   cursor: pointer;
 }
-.qchip.active { background: rgba(37, 99, 235, 0.12); border-color: var(--accent); color: var(--accent); }
+.qchip.active { background: rgba(var(--accent-rgb), 0.16); color: var(--accent); }
 
 .ed {
-  background: var(--surface-sub);
-  border: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.07), rgba(255, 255, 255, 0.02));
+  border: none;
+  box-shadow: inset 0 1px 0 rgba(var(--accent-rgb), 0.28);
   border-radius: 14px;
   padding: 12px;
   margin: 10px 0;
@@ -390,7 +404,7 @@ input:focus, select:focus { border-color: var(--accent); background: var(--surfa
 }
 .srow { display: grid; grid-template-columns: 1fr 100px 32px; gap: 6px; align-items: center; }
 
-.bar { display: flex; height: 8px; border-radius: 99px; overflow: hidden; background: var(--line); margin: 12px 0 6px; }
+.bar { display: flex; height: 8px; border-radius: 99px; overflow: hidden; background: rgba(255, 255, 255, 0.08); margin: 12px 0 6px; }
 .bar i { display: block; height: 100%; transition: width 0.3s; }
 
 .tbl-wrap { overflow-x: auto; margin-top: 8px; }
@@ -411,11 +425,20 @@ table.sim-tbl tr.hl { background: var(--ok-bg); font-weight: 800; }
   transform: translateZ(0);
   -webkit-transform: translateZ(0);
   display: flex;
-  background: #FFFFFF;
-  border-top: 1px solid var(--line);
+  background: #060D1A;
+  border-top: none;
   padding: 6px 2px calc(6px + env(safe-area-inset-bottom, 0px));
 }
-:root[data-theme="dark"] .tabs { background: #131C31; }
+.tabs::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 6%;
+  right: 6%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(var(--accent-rgb), 0.45), transparent);
+  pointer-events: none;
+}
 .tab-btn {
   flex: 1;
   background: none;
@@ -430,13 +453,14 @@ table.sim-tbl tr.hl { background: var(--ok-bg); font-weight: 800; }
   font-weight: 700;
   cursor: pointer;
 }
-.tab-btn.active { color: var(--accent); }
+.tab-btn.active { color: var(--accent); text-shadow: 0 0 14px rgba(var(--accent-rgb), 0.65); }
 
 /* アコーディオン */
 details.acc {
   background: var(--surface);
   border-radius: var(--radius);
-  border: 1px solid var(--line);
+  border: none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), var(--shadow);
   margin-bottom: 14px;
   box-shadow: var(--shadow);
   overflow: hidden;
@@ -464,7 +488,7 @@ details.acc[open] summary { border-bottom: 1px solid var(--line); }
   left: 50%;
   transform: translateX(-50%);
   z-index: 60;
-  background: #0F172A;
+  background: #0A1728;
   color: #FFFFFF;
   font-size: 12px;
   font-weight: 700;
@@ -484,7 +508,7 @@ details.acc[open] summary { border-bottom: 1px solid var(--line); }
   position: relative;
   overflow: hidden;
   background: radial-gradient(120% 90% at 50% 0%, #0B2138 0%, #050B16 55%, #020409 100%);
-  border: 1px solid rgba(103, 232, 249, 0.22);
+  border: none;
   border-radius: 26px;
   padding: 18px 16px 20px;
   color: #E2E8F0;
@@ -607,7 +631,7 @@ details.acc[open] summary { border-bottom: 1px solid var(--line); }
   transition: opacity 0.35s;
 }
 .hud-status.fade { opacity: 0; }
-.hud-flow { position: relative; margin-top: 14px; padding: 12px 12px 10px; border: 1px solid rgba(103, 232, 249, 0.16); border-radius: 14px; background: rgba(8, 20, 38, 0.55); }
+.hud-flow { position: relative; margin-top: 14px; padding: 12px 12px 10px; border: none; border-radius: 14px; background: rgba(8, 20, 38, 0.55); box-shadow: inset 0 1px 0 rgba(165, 243, 252, 0.08); }
 .hud-flow-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 .hud-flow-k { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; color: #7DD3FC; width: 58px; flex: none; }
 .hud-flow-row strong { font-size: 13px; color: #F0FDFA; min-width: 74px; text-align: right; font-variant-numeric: tabular-nums; }
@@ -625,8 +649,9 @@ details.acc[open] summary { border-bottom: 1px solid var(--line); }
 .hud-panel {
   position: relative;
   text-align: left;
-  background: rgba(8, 20, 38, 0.72);
-  border: 1px solid rgba(103, 232, 249, 0.26);
+  background: rgba(12, 30, 54, 0.72);
+  border: none;
+  box-shadow: inset 0 1px 0 rgba(165, 243, 252, 0.10);
   border-radius: 14px;
   padding: 11px 12px 10px;
   color: #E2E8F0;
@@ -637,15 +662,6 @@ details.acc[open] summary { border-bottom: 1px solid var(--line); }
   gap: 1px;
   min-height: 74px;
 }
-.hud-panel::before, .hud-panel::after {
-  content: "";
-  position: absolute;
-  width: 9px; height: 9px;
-  border-color: rgba(165, 243, 252, 0.85);
-  border-style: solid;
-}
-.hud-panel::before { top: -1px; left: -1px; border-width: 2px 0 0 2px; border-top-left-radius: 13px; }
-.hud-panel::after { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; border-bottom-right-radius: 13px; }
 .hud-panel-k { font-size: 10px; font-weight: 800; letter-spacing: 0.14em; color: #7DD3FC; }
 .hud-panel-v { font-size: 19px; font-weight: 800; color: #F0FDFA; font-variant-numeric: tabular-nums; line-height: 1.25; }
 .hud-panel-v.neg { color: #FCA5A5; }
@@ -655,8 +671,9 @@ details.acc[open] summary { border-bottom: 1px solid var(--line); }
   flex: 1;
   padding: 11px 4px;
   border-radius: 12px;
-  border: 1px solid rgba(103, 232, 249, 0.45);
+  border: none;
   background: rgba(14, 42, 74, 0.65);
+  box-shadow: inset 0 -1px 0 rgba(103, 232, 249, 0.35);
   color: #CFFAFE;
   font-size: 12px;
   font-weight: 800;
@@ -669,9 +686,98 @@ details.acc[open] summary { border-bottom: 1px solid var(--line); }
   .hud-core-wrap.listening .hud-mic { animation: none; }
   .hud-bar i { transition: none; }
 }
+
+/* ==========================================
+   クイック入力オーブ（全シート共通）
+   現在のシートのアクセント色で光る小さなコア。
+   タップで下から入力パネルがせり上がる。
+   ========================================== */
+.orb {
+  position: fixed;
+  right: 16px;
+  bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: none;
+  padding: 0;
+  background: radial-gradient(circle at 50% 42%, rgba(255, 255, 255, 0.95) 0%, rgba(var(--accent-rgb), 0.9) 26%, rgba(var(--accent-rgb), 0.28) 58%, rgba(var(--accent-rgb), 0.07) 100%);
+  box-shadow: 0 0 22px rgba(var(--accent-rgb), 0.55), 0 10px 24px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+  z-index: 40;
+}
+.orb-ring {
+  position: absolute;
+  inset: -5px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  border-top-color: rgba(var(--accent-rgb), 0.9);
+  border-right-color: rgba(var(--accent-rgb), 0.35);
+  animation: orbSpin 5.5s linear infinite;
+  pointer-events: none;
+}
+@keyframes orbSpin { to { transform: rotate(360deg); } }
+.orb-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 44;
+  background: rgba(1, 4, 10, 0.55);
+  opacity: 0;
+  transition: opacity 0.25s;
+}
+.orb-backdrop.show { opacity: 1; }
+.orb-panel {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 45;
+  background: linear-gradient(180deg, #0C1D33, #060D1A);
+  border-radius: 22px 22px 0 0;
+  box-shadow: 0 -18px 44px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(var(--accent-rgb), 0.35);
+  padding: 14px 16px calc(18px + env(safe-area-inset-bottom, 0px));
+  max-height: 82dvh;
+  overflow-y: auto;
+  transform: translateY(105%);
+  transition: transform 0.28s ease;
+}
+.orb-panel.show { transform: translateY(0); }
+.orb-panel-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.orb-panel-title { font-size: 13px; font-weight: 800; letter-spacing: 0.12em; color: var(--accent); }
+.orb-close {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--ink);
+  font-size: 15px;
+  cursor: pointer;
+}
+.orb-switch { display: flex; gap: 6px; margin-bottom: 10px; }
+.orb-switch button {
+  flex: 1;
+  border: none;
+  border-radius: 10px;
+  padding: 8px 4px;
+  font-size: 12px;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--sub);
+  cursor: pointer;
+  font-family: inherit;
+}
+.orb-switch button.on { background: rgba(var(--accent-rgb), 0.18); color: var(--accent); }
+.orb-qa { display: flex; flex-direction: column; gap: 8px; }
+.orb-qa .hud-act { width: 100%; }
+@media (prefers-reduced-motion: reduce) {
+  .orb-ring { animation: none; }
+  .orb-panel { transition: none; }
+  .orb-backdrop { transition: none; }
+}
 </style>
 </head>
-<body>
+<body data-sheet="home">
 
 <!-- ロック画面（回転ジェスチャー／パターン） -->
 <div class="lock-overlay" id="lockOverlay">
@@ -917,7 +1023,7 @@ details.acc[open] summary { border-bottom: 1px solid var(--line); }
           <option value="24">24回払い</option>
         </select>
 
-        <div id="firstInConfirmedWrap" style="margin-top:8px;padding:10px;background:var(--surface-sub);border:1px solid var(--line);border-radius:12px" hidden>
+        <div id="firstInConfirmedWrap" style="margin-top:8px;padding:10px;background:var(--surface-sub);border-radius:12px" hidden>
           <label for="inFirstInConfirmed">1回目（初回支払月）の扱い</label>
           <select id="inFirstInConfirmed">
             <option value="1">1回目は今月確定済みに含まれる（2回目以降から加算）</option>
@@ -1220,6 +1326,19 @@ details.acc[open] summary { border-bottom: 1px solid var(--line); }
   </button>
 </nav>
 
+<!-- クイック入力オーブ -->
+<div class="orb-backdrop" id="orbBackdrop" hidden></div>
+<section class="orb-panel" id="orbPanel" hidden aria-label="クイック入力">
+  <div class="orb-panel-head">
+    <span class="orb-panel-title" id="orbPanelTitle">クイック入力</span>
+    <button type="button" class="orb-close" id="orbCloseBtn" aria-label="閉じる">✕</button>
+  </div>
+  <div class="orb-panel-body" id="orbPanelBody"></div>
+</section>
+<button type="button" class="orb" id="orbBtn" aria-label="クイック入力を開く" hidden>
+  <span class="orb-ring"></span>
+</button>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
   var KEY = 'kakei-v1';
@@ -1478,6 +1597,7 @@ document.addEventListener('DOMContentLoaded', function() {
   var lockView = 'pattern';           // 'pattern' | 'spin'
   var sMode = 'unlock';               // 'unlock' | 'enroll1' | 'enroll2'
   var sProgress = [];                 // 入力済みステップ（'CW1' / 'CCW2' などのトークン）
+  var sVerified = 0;                  // 照合済みステップ数（非同期ハッシュ照合の競合対策）
   var sTempSeq = null;                // 登録1回目の入力（メモリ上のみ）
   var sBusy = false;                  // ハッシュ照合中フラグ
   var sUnlocked = false;              // 解除演出中フラグ
@@ -1556,7 +1676,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   function openSpinUnlock(allowCancel) {
-    sMode = 'unlock'; sProgress = []; sTempSeq = null; sBusy = false; sUnlocked = false;
+    sMode = 'unlock'; sProgress = []; sVerified = 0; sTempSeq = null; sBusy = false; sUnlocked = false;
     canCancelSetup = !!allowCancel;
     lockCancelBtn.hidden = !allowCancel;
     lockTitle.textContent = '回転ジェスチャーで解除';
@@ -1591,6 +1711,7 @@ document.addEventListener('DOMContentLoaded', function() {
     flashGalaxy();
     setTimeout(function() { lockOverlay.classList.remove('flash-err'); lockOverlay.classList.remove('shake'); }, 450);
     sProgress = [];
+    sVerified = 0;
     renderSpinUI();
   }
 
@@ -1624,16 +1745,23 @@ document.addEventListener('DOMContentLoaded', function() {
     if (sMode === 'unlock') {
       if (sProgress.length >= spinLen()) return;
       sProgress.push(tok);
+      // 照合は非同期なので、対象ステップ番号と接頭辞はこの時点の値を固定する。
+      // （コールバック側で sProgress.length を読むと、次の手が先行入力された場合に
+      //   ずれたインデックスと比較してしまい、正しい組み合わせでも失敗する）
+      var stepIdx = sProgress.length - 1;
+      var stepPrefix = sProgress.slice();
       renderSpinUI();
       sBusy = true;
-      hashSpinPrefix(sProgress).then(function(hx) {
+      hashSpinPrefix(stepPrefix).then(function(hx) {
         sBusy = false;
         if (sUnlocked) return;
-        if (hx === lockState.spinHashes[sProgress.length - 1]) {
+        if (stepIdx !== sVerified) return; // 前の手の照合待ち、またはリセット済み
+        if (hx === lockState.spinHashes[stepIdx]) {
+          sVerified++;
           flareGalaxy(tok.slice(0, 2) === 'CW' ? 1 : -1);
-          if (sProgress.length >= spinLen()) { spinUnlockSuccess(); return; }
+          if (sVerified >= spinLen()) { spinUnlockSuccess(); return; }
           lockSub.className = 'lock-sub';
-          lockSub.textContent = 'あと ' + (spinLen() - sProgress.length) + ' 手';
+          lockSub.textContent = 'あと ' + (spinLen() - sVerified) + ' 手';
           if (done) done();
         } else {
           spinError('組み合わせが違います');
@@ -3461,6 +3589,258 @@ document.addEventListener('DOMContentLoaded', function() {
     };
   })();
 
+
+  // ==========================================
+  // クイック入力オーブ（全シート共通）
+  // パネルの中身は各シート本物のフォームそのものを使う：
+  //  - カード/状況/奨学金：既存ノードをパネルへ移動し、閉じたら元の場所へ戻す
+  //  - 固定費/NISA：シート自身の追加ボタンと同じ下書き状態を作り、
+  //    レンダラーが組み立てた .ed フォームをパネルへ移して使う
+  // 保存・検証・再描画はすべてシート側の既存ハンドラーがそのまま担う。
+  // ==========================================
+  var ACCENTS = {
+    home: ['#22D3EE', '34, 211, 238'],
+    status: ['#34D399', '52, 211, 153'],
+    card: ['#A78BFA', '167, 139, 250'],
+    fixed: ['#FB923C', '251, 146, 60'],
+    nisa: ['#FACC15', '250, 204, 21'],
+    scholar: ['#38BDF8', '56, 189, 248']
+  };
+  function applySheetAccent(k) {
+    document.body.setAttribute('data-sheet', k);
+    var a = ACCENTS[k] || ACCENTS.home;
+    document.body.style.setProperty('--accent', a[0]);
+    document.body.style.setProperty('--accent-rgb', a[1]);
+  }
+
+  var orbBtn = $('orbBtn'), orbPanel = $('orbPanel'), orbBody = $('orbPanelBody'),
+      orbTitle = $('orbPanelTitle'), orbBackdrop = $('orbBackdrop');
+  var orbOpen = false;
+  var orbCleanup = null;    // パネルを閉じるときの後片付け（ノード復帰・下書き破棄）
+  var orbFormState = null;  // { kind, node } レンダラー製フォームをホスト中
+  var orbHideTimer = null;
+
+  function syncOrbVisibility() {
+    if (!orbBtn) return;
+    var lockUp = !lockOverlay.hidden || !$('spinPrompt').hidden;
+    orbBtn.hidden = lockUp || orbOpen;
+  }
+  if (window.MutationObserver) {
+    var orbObs = new MutationObserver(syncOrbVisibility);
+    orbObs.observe(lockOverlay, { attributes: true, attributeFilter: ['hidden'] });
+    var spEl = $('spinPrompt');
+    if (spEl) orbObs.observe(spEl, { attributes: true, attributeFilter: ['hidden'] });
+  }
+
+  // 既存ノードをパネルへ移動し、閉じたら元の位置へ戻す
+  function moveNodeIntoPanel(node, title) {
+    var ph = document.createComment('orb-ph');
+    node.parentNode.insertBefore(ph, node);
+    orbBody.appendChild(node);
+    orbTitle.textContent = title;
+    orbCleanup = function() {
+      if (ph.parentNode) {
+        ph.parentNode.insertBefore(node, ph);
+        ph.parentNode.removeChild(ph);
+      } else if (node.parentNode === orbBody) {
+        orbBody.removeChild(node);
+      }
+    };
+  }
+
+  // レンダラー製の追加フォーム（.ed）を破棄し、下書き状態をリセットしてシートを再描画する
+  function discardOrbForm() {
+    if (!orbFormState) return;
+    var st = orbFormState;
+    orbFormState = null;
+    if (st.node && st.node.parentNode) st.node.parentNode.removeChild(st.node);
+    if (st.kind === 'fixed') { editId = null; renderFixedSheet(); }
+    else if (st.kind === 'extra') { extId = null; renderFixedSheet(); }
+    else if (st.kind === 'bonus') { bId = null; renderFixedSheet(); }
+    else if (st.kind === 'nisa') { hId = null; renderNisaSheet(); }
+  }
+
+  // フォーム内の保存成功（＝下書きフラグが下りた）/キャンセルでパネルを閉じる
+  function hookOrbFormSave(form, kind) {
+    if (!form) return;
+    var sv = null;
+    form.querySelectorAll('button.btn').forEach(function(b) {
+      if (b.classList.contains('ghost')) {
+        if (b.textContent.indexOf('キャンセル') >= 0) b.addEventListener('click', function() { closeOrbPanel(); });
+      } else if (!sv && !b.classList.contains('danger')) {
+        sv = b;
+      }
+    });
+    if (!sv) return;
+    sv.addEventListener('click', function() {
+      var done = (kind === 'fixed' && !editId) || (kind === 'extra' && !extId) ||
+                 (kind === 'bonus' && !bId) || (kind === 'nisa' && !hId);
+      if (done) closeOrbPanel();
+    });
+  }
+
+  // 固定費シート用：種別（固定費/別収入/ボーナス）の追加フォームをホストする
+  function hostOrbFixedForm(kind, host) {
+    var box = null;
+    if (kind === 'fixed') {
+      draft = { id: uid(), n: '', a: 0, d: 27, pay: 'bank', kind: '', subs: [] };
+      editId = draft.id; isNew = true;
+      renderFixedSheet();
+      box = $('fixedBox');
+    } else if (kind === 'extra') {
+      extDraft = { id: uid(), n: '', a: 0, d: 1 };
+      extId = extDraft.id; extNew = true;
+      renderFixedSheet();
+      box = $('extraIncomeBox');
+    } else {
+      bDraft = { id: uid(), n: '臨時賞与', m: 12, d: 15, a: 0 };
+      bId = bDraft.id; bNew = true;
+      renderFixedSheet();
+      box = $('bonusBox');
+    }
+    var form = box ? box.querySelector('.ed') : null;
+    if (form) {
+      host.appendChild(form);
+      orbFormState = { kind: kind, node: form };
+      hookOrbFormSave(form, kind);
+    }
+  }
+
+  function buildOrbContent(k) {
+    orbBody.innerHTML = '';
+    orbCleanup = null;
+    orbFormState = null;
+
+    if (k === 'home') {
+      orbTitle.textContent = 'クイックアクション';
+      var qa = el('div', 'orb-qa');
+      [['hudActExpense', '＋ 支出を記録'], ['hudActFixed', '＋ 固定費追加'], ['hudActNisa', '＋ NISA追加']].forEach(function(pair) {
+        var b = el('button', 'hud-act', pair[1]);
+        b.type = 'button';
+        b.onclick = function() { closeOrbPanel(); var t = $(pair[0]); if (t) t.click(); };
+        qa.appendChild(b);
+      });
+      orbBody.appendChild(qa);
+      return;
+    }
+
+    if (k === 'status') {
+      // 状況シートの主入力＝残高・給料設定（固定費シート先頭の本物のカードを移動して使う）
+      var balCard = document.querySelector('#p-fixed .card');
+      if (balCard) moveNodeIntoPanel(balCard, '残高・給料クイック編集');
+      return;
+    }
+
+    if (k === 'card') {
+      var cardForm = document.querySelector('#p-card .card');
+      if (!cardForm) return;
+      moveNodeIntoPanel(cardForm, '支出・利用を記録');
+      var before = S.log.length;
+      var onSave = function() {
+        if (S.log.length > before) { before = S.log.length; closeOrbPanel(); }
+      };
+      $('addLogBtn').addEventListener('click', onSave);
+      var prevCleanup = orbCleanup;
+      orbCleanup = function() {
+        $('addLogBtn').removeEventListener('click', onSave);
+        prevCleanup();
+      };
+      return;
+    }
+
+    if (k === 'fixed') {
+      orbTitle.textContent = 'クイック追加';
+      var sw = el('div', 'orb-switch');
+      var host = el('div');
+      [['fixed', '固定費'], ['extra', '別収入'], ['bonus', 'ボーナス']].forEach(function(kd) {
+        var b = el('button', kd[0] === 'fixed' ? 'on' : '', kd[1]);
+        b.type = 'button';
+        b.onclick = function() {
+          discardOrbForm();
+          sw.querySelectorAll('button').forEach(function(x) { x.classList.toggle('on', x === b); });
+          host.innerHTML = '';
+          hostOrbFixedForm(kd[0], host);
+        };
+        sw.appendChild(b);
+      });
+      orbBody.appendChild(sw);
+      orbBody.appendChild(host);
+      hostOrbFixedForm('fixed', host);
+      orbCleanup = function() { discardOrbForm(); };
+      return;
+    }
+
+    if (k === 'nisa') {
+      orbTitle.textContent = 'NISA銘柄を追加';
+      hDraft = { id: uid(), n: '新規ファンド', bal: 0, mo: 0, rate: 5.0 };
+      hId = hDraft.id; hNew = true;
+      renderNisaSheet();
+      var nform = $('nisaHoldBox').querySelector('.ed');
+      if (nform) {
+        orbBody.appendChild(nform);
+        orbFormState = { kind: 'nisa', node: nform };
+        hookOrbFormSave(nform, 'nisa');
+      }
+      orbCleanup = function() { discardOrbForm(); };
+      return;
+    }
+
+    if (k === 'scholar') {
+      orbTitle.textContent = '奨学金 残高・条件を編集';
+      schEditing = true;
+      renderScholarSheet();
+      moveNodeIntoPanel($('schEditFormBox'), '奨学金 残高・条件を編集');
+      var schForm = $('schEditFormBox').querySelector('.ed');
+      if (schForm) {
+        schForm.querySelectorAll('button.btn').forEach(function(b) {
+          b.addEventListener('click', function() { if (!schEditing) closeOrbPanel(); });
+        });
+      }
+      var prevCleanup2 = orbCleanup;
+      orbCleanup = function() {
+        schEditing = false;
+        prevCleanup2();
+        renderScholarSheet();
+      };
+      return;
+    }
+
+    orbTitle.textContent = 'クイック入力';
+  }
+
+  function openOrbPanel() {
+    if (orbOpen || !lockOverlay.hidden) return;
+    if (orbHideTimer) { clearTimeout(orbHideTimer); orbHideTimer = null; }
+    buildOrbContent(curPage);
+    orbOpen = true;
+    orbBackdrop.hidden = false;
+    orbPanel.hidden = false;
+    orbBtn.hidden = true;
+    requestAnimationFrame(function() {
+      orbBackdrop.classList.add('show');
+      orbPanel.classList.add('show');
+    });
+  }
+
+  function closeOrbPanel() {
+    if (!orbOpen) return;
+    orbOpen = false;
+    orbBackdrop.classList.remove('show');
+    orbPanel.classList.remove('show');
+    if (orbCleanup) { var c = orbCleanup; orbCleanup = null; c(); }
+    if (orbHideTimer) clearTimeout(orbHideTimer);
+    orbHideTimer = setTimeout(function() {
+      orbPanel.hidden = true;
+      orbBackdrop.hidden = true;
+    }, 280);
+    syncOrbVisibility();
+  }
+
+  if (orbBtn) orbBtn.onclick = openOrbPanel;
+  if ($('orbCloseBtn')) $('orbCloseBtn').onclick = closeOrbPanel;
+  if (orbBackdrop) orbBackdrop.onclick = closeOrbPanel;
+  window.__orb = { open: openOrbPanel, close: closeOrbPanel, isOpen: function() { return orbOpen; } };
+
   // ==========================================
   // 6タブ切り替え制御
   // ==========================================
@@ -3473,6 +3853,8 @@ document.addEventListener('DOMContentLoaded', function() {
   document.querySelectorAll('.tab-btn').forEach(function(btn) {
     btn.onclick = function() {
       var k = btn.getAttribute('data-p');
+      closeOrbPanel();
+      applySheetAccent(k);
       $('pageTitle').textContent = TITLES[k];
       document.querySelectorAll('.page').forEach(function(p) { p.hidden = p.id !== 'p-' + k; });
       document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.toggle('active', b === btn); });
@@ -3495,6 +3877,8 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   renderAll();
+  applySheetAccent('home');
+  syncOrbVisibility();
 });
 </script>
 <script>
