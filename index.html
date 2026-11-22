@@ -1448,7 +1448,7 @@ body.core-lock main { overflow: hidden; }
           <div class="sub" id="cardRuleSummary" style="padding-bottom:8px">毎月15日締・翌月26日払</div>
         </div>
       </div>
-      <div class="sub" style="margin-top:4px">※確定済みの今月請求額には、すでに確定している今月引き落とし額を入れてください。分割払いの1回目を確定済み扱いにした場合は二重加算されません。</div>
+      <div class="sub" style="margin-top:4px">※確定済みの今月請求額には、すでに確定している今月引き落とし額（全額）を入れてください。入力した月はこの額が引落総額となり、固定費・利用記録は上乗せされません（未入力の月は自動で見積もります）。</div>
       <button type="button" class="btn ghost full" id="settleCardBtn">確定済みの今月請求額・一括分を精算済みにする</button>
     </div>
 
@@ -3292,12 +3292,16 @@ document.addEventListener('DOMContentLoaded', function() {
         });
       })();
       var logC = sum(S.log, function(e) { return getLogInstallmentForMonth(e, targetY, targetM); });
-      var totC = baseC + fixedC + logC;
+      // 確定額（cardAmt）が入っている月は、それが請求の全額。
+      // 固定費・利用記録分はすでにその中に含まれるため上乗せしない（二重計上防止）。
+      var totC = baseC > 0 ? baseC : (fixedC + logC);
       if (totC > 0) {
         var partsDesc = [];
         if (baseC > 0) partsDesc.push('確定 ' + yen(baseC));
-        if (fixedC > 0) partsDesc.push('固定 ' + yen(fixedC));
-        if (logC > 0) partsDesc.push('追加/分割 ' + yen(logC));
+        else {
+          if (fixedC > 0) partsDesc.push('固定 ' + yen(fixedC));
+          if (logC > 0) partsDesc.push('追加/分割 ' + yen(logC));
+        }
         events.push({
           date: cardDt,
           title: 'クレカ引き落とし',
