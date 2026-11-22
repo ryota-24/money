@@ -1140,6 +1140,22 @@ input[type="text"], input[type="number"], input[type="date"], input[type="month"
   .page.revealed .core-stage { animation: none; }
   body::before { transition: none; }
 }
+
+/* ==========================================
+   v21: 丸の中へ入り込む遷移（ダイブ）
+   ========================================== */
+.page.revealed .core-stage { animation: none; }
+.page.diving .sheet-core, .page.diving .hud-core-wrap { animation: coreDive 0.5s cubic-bezier(.55,.06,.68,.19) both; }
+@keyframes coreDive { 0% { transform: scale(1); opacity: 1; filter: brightness(1); } 55% { opacity: 1; } 100% { transform: scale(3.4); opacity: 0; filter: brightness(1.9) blur(3px); } }
+.page.diving .core-stage { animation: diveFlash 0.5s ease-out both; }
+@keyframes diveFlash { 0% { filter: brightness(1); } 45% { filter: brightness(1.45); } 100% { filter: brightness(1.15); } }
+.sheet-details.anim-in { animation: sheetArrive 0.65s cubic-bezier(.16,.84,.3,1) both; transform-origin: 50% -160px; }
+@keyframes sheetArrive { from { opacity: 0; transform: scale(0.88) translateY(30px); filter: blur(6px); } to { opacity: 1; transform: scale(1) translateY(0); filter: blur(0); } }
+.sheet-details.anim-out { animation: sheetLeave 0.3s ease-in both; transform-origin: 50% -140px; }
+@keyframes sheetLeave { from { opacity: 1; transform: scale(1) translateY(0); filter: blur(0); } to { opacity: 0; transform: scale(0.9) translateY(16px); filter: blur(4px); } }
+@media (prefers-reduced-motion: reduce) {
+  .page.diving .sheet-core, .page.diving .hud-core-wrap, .page.diving .core-stage, .sheet-details.anim-in, .sheet-details.anim-out { animation: none; }
+}
 </style>
 </head>
 <body data-sheet="home">
@@ -4800,6 +4816,7 @@ doTapCycle();
     if (c) fitSheetCore(c);
   }
 
+  var diveTimers = {};
   function setRevealed(key, on) {
     var st = coreState[key];
     if (!st) return;
@@ -4808,13 +4825,47 @@ doTapCycle();
     if (st.revealed === on) return;
     st.revealed = on;
     var page = $('p-' + key), det = $('details-' + key);
-    if (page) { page.classList.toggle('revealed', on); page.classList.toggle('core-only', !on); }
-    if (det) {
-      det.hidden = !on;
-      if (on) { det.classList.remove('anim-in'); void det.offsetWidth; det.classList.add('anim-in'); }
+    var rm = false;
+    try { rm = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) {}
+    if (diveTimers[key]) { clearTimeout(diveTimers[key]); diveTimers[key] = 0; }
+    function applyReveal() {
+      if (page) { page.classList.toggle('revealed', true); page.classList.toggle('core-only', false); }
+      if (det) {
+        det.hidden = false;
+        det.classList.remove('anim-out');
+        det.classList.remove('anim-in'); void det.offsetWidth; det.classList.add('anim-in');
+      }
+      if (curPage === key) document.body.classList.toggle('core-lock', false);
+      window.scrollTo(0, 0); var _sc = document.querySelector('main'); if (_sc) _sc.scrollTop = 0;
+      requestAnimationFrame(function() { refitCore(key); });
+      setTimeout(function() { refitCore(key); }, 480);
     }
-    if (curPage === key) document.body.classList.toggle('core-lock', !on);
-    window.scrollTo(0, 0); var _sc = document.querySelector('main'); if (_sc) _sc.scrollTop = 0;
+    if (on) {
+      if (page && !rm) {
+        // まず丸の中へ入り込む（ダイブ）→ その後に詳細が開く
+        page.classList.add('diving');
+        diveTimers[key] = setTimeout(function() {
+          page.classList.remove('diving');
+          applyReveal();
+        }, 480);
+      } else {
+        applyReveal();
+      }
+      return;
+    }
+    // 閉じる
+    if (page) { page.classList.toggle('revealed', false); page.classList.toggle('core-only', true); page.classList.remove('diving'); }
+    if (det) {
+      if (!rm && !det.hidden) {
+        det.classList.remove('anim-in'); det.classList.add('anim-out');
+        var detRef = det;
+        diveTimers[key] = setTimeout(function() { detRef.hidden = true; detRef.classList.remove('anim-out'); }, 300);
+      } else {
+        det.hidden = true;
+      }
+    }
+    if (curPage === key) document.body.classList.toggle('core-lock', true);
+    window.scrollTo(0, 0); var _sc2 = document.querySelector('main'); if (_sc2) _sc2.scrollTop = 0;
     requestAnimationFrame(function() { refitCore(key); });
     setTimeout(function() { refitCore(key); }, 480);
   }
