@@ -1094,6 +1094,17 @@ header h1 { text-shadow: 0 0 14px rgba(var(--accent-rgb), 0.35); }
 @media (prefers-reduced-motion: reduce) {
   .sheet-core::after, .hud-core-wrap::after { animation: none; }
 }
+
+/* ==========================================
+   v18: 下部タブバーの固定を確実にする
+   body 全体スクロールだと iOS でスクロール中に固定バーが
+   コンテンツに付いて動くことがあるため、スクロールを
+   main の内側に閉じ込め、固定要素は常時ビューポート基準にする。
+   ========================================== */
+body { height: 100dvh; overflow: hidden; display: flex; flex-direction: column; }
+header { flex: 0 0 auto; }
+main { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior-y: none; }
+body.core-lock main { overflow: hidden; }
 </style>
 </head>
 <body data-sheet="home">
@@ -4706,7 +4717,7 @@ doTapCycle();
       // ホームは残高入力など renderAll を経ない編集も拾うため、表示のたびに再描画する（軽量）
       if (dirtyPages[k] || k === 'home') renderPage(k);
       if (k === 'home') startHudLoop();
-      window.scrollTo(0, 0);
+      window.scrollTo(0, 0); var _sc = document.querySelector('main'); if (_sc) _sc.scrollTop = 0;
       // iOS で固定タブバーの位置が古いスクロール状態のまま残る場合があるため、
       // 切替直後にレイアウトを確定させてバーを画面下端へ再配置させる
       var tabsEl = document.querySelector('.tabs');
@@ -4774,7 +4785,7 @@ doTapCycle();
       if (on) { det.classList.remove('anim-in'); void det.offsetWidth; det.classList.add('anim-in'); }
     }
     if (curPage === key) document.body.classList.toggle('core-lock', !on);
-    window.scrollTo(0, 0);
+    window.scrollTo(0, 0); var _sc = document.querySelector('main'); if (_sc) _sc.scrollTop = 0;
     requestAnimationFrame(function() { refitCore(key); });
     setTimeout(function() { refitCore(key); }, 480);
   }
