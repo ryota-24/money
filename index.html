@@ -1156,6 +1156,34 @@ input[type="text"], input[type="number"], input[type="date"], input[type="month"
 @media (prefers-reduced-motion: reduce) {
   .page.diving .sheet-core, .page.diving .hud-core-wrap, .page.diving .core-stage, .sheet-details.anim-in, .sheet-details.anim-out { animation: none; }
 }
+
+/* ==========================================
+   v22: タブ切替ワープ＋スキャン光／解除バースト／
+   ホーム球の指追従スポット
+   ========================================== */
+/* タブ切替ワープ（main に一時付与する小さな歪み） */
+main.warping { animation: pageWarp 0.35s ease-out; }
+@keyframes pageWarp { 0% { transform: scale(0.985); filter: blur(2px) brightness(1.18); } 100% { transform: scale(1); filter: blur(0) brightness(1); } }
+
+/* スキャン光（切替時に上から下へ1回流れる帯） */
+#scanFx { position: fixed; left: 0; right: 0; top: 0; height: 120px; z-index: 35; pointer-events: none; opacity: 0; background: linear-gradient(180deg, rgba(160,225,255,0) 0%, rgba(160,225,255,0.16) 55%, rgba(255,255,255,0.28) 82%, rgba(160,225,255,0) 100%); }
+#scanFx.run { animation: scanSweep 0.45s ease-out; }
+@keyframes scanSweep { 0% { transform: translateY(-130px); opacity: 0; } 18% { opacity: 1; } 100% { transform: translateY(100vh); opacity: 0; } }
+
+/* ロック解除バースト（オーバーレイ全体の発光。閉じる直前に付与） */
+.lock-overlay.unlock-burst { animation: unlockBurst 0.24s ease-out; }
+@keyframes unlockBurst { 0% { filter: brightness(1); } 35% { filter: brightness(1.7); } 100% { filter: brightness(1.25); } }
+
+/* ホーム球：指に追従するハイライト（::after の目盛りリングとは別レイヤー） */
+.hud-core-wrap::before { content: ""; position: absolute; inset: 0; border-radius: 50%; pointer-events: none; z-index: 1; opacity: 0; transition: opacity 0.25s ease; background: radial-gradient(circle 90px at var(--mx, 50%) var(--my, 50%), rgba(255,236,190,0.20) 0%, rgba(255,214,120,0.07) 55%, rgba(255,214,120,0) 78%); }
+.hud-core-wrap.ptr-on::before { opacity: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  main.warping { animation: none; }
+  #scanFx.run { animation: none; }
+  .lock-overlay.unlock-burst { animation: none; }
+  .hud-core-wrap::before { transition: none; }
+}
 </style>
 </head>
 <body data-sheet="home">
@@ -1237,6 +1265,7 @@ input[type="text"], input[type="number"], input[type="date"], input[type="month"
 
 <div class="toast" id="toast">保存しました</div>
 
+<div id="scanFx" aria-hidden="true"></div>
 <main>
   <!-- ==========================================
        シート0：ホーム（コマンドセンター）
@@ -1935,6 +1964,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // ロック解除に成功した共通処理。光点タップ未登録なら、どの方法で開いても登録を提案する
   function onAppUnlocked(via) {
+    // v22: 解除バースト（銀河をフレアさせ、オーバーレイが発光してから閉じる）
+    if (!reducedMotion) {
+      try { flareGalaxy(1); } catch (e) {}
+      lockOverlay.classList.remove('unlock-burst'); void lockOverlay.offsetWidth; lockOverlay.classList.add('unlock-burst');
+      setTimeout(function() {
+        lockOverlay.classList.remove('unlock-burst');
+        hideLockOverlay();
+        if (via !== 'tap' && !hasTap()) showTapPrompt();
+      }, 230);
+      return;
+    }
     hideLockOverlay();
     if (via !== 'tap' && !hasTap()) showTapPrompt();
   }
@@ -2659,7 +2699,7 @@ document.addEventListener('DOMContentLoaded', function() {
     opt = opt || {};
     var TAU = Math.PI * 2;
     var t = opt.t || 0;
-    var red = !!(opt.flash && opt.flash > 0.3);
+    var red = !!(opt.red || (opt.flash && opt.flash > 0.3));
     var PAL = opt.tint ? tintPalette(opt.tint) : SPHERE_PALETTE;
     var cMain = red ? '248,113,113' : PAL.main;
     var cSoft = red ? '254,202,202' : PAL.soft;
@@ -4145,7 +4185,7 @@ document.addEventListener('DOMContentLoaded', function() {
     running: false, raf: 0, last: 0,
     rot: 0, vel: 0, aSeg: 0, aDash: 0, aOrb: 0, aTick: 0, pulse: 0,
     ratio: 0, metricIdx: 0, metrics: [], messages: [], msgIdx: 0, msgTimer: 0,
-    parts: null, count: 0, sprites: null, side: 0, cx: 0, cy: 0, R: 0, dragging: false
+    parts: null, count: 0, sprites: null, side: 0, cx: 0, cy: 0, R: 0, dragging: false, netNeg: false
   };
   var hudCanvasEl = $('hudCanvas'), hudCtx = null;
   try { hudCtx = hudCanvasEl && hudCanvasEl.getContext ? hudCanvasEl.getContext('2d') : null; } catch (e) { hudCtx = null; }
@@ -4225,7 +4265,7 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     }
     drawRadiantSphere(g, D.cx, D.cy, D.R, { main: D.rot, seg: D.aSeg, dash: D.aDash, orb: D.aOrb, tick: D.aTick },
-      { ratio: D.ratio, pulse: D.pulse, flash: 0, t: t, sprites: spr });
+      { ratio: D.ratio, pulse: D.pulse, flash: 0, red: !!D.netNeg, t: t, sprites: spr });
     g.globalAlpha = 1;
   }
   function startHudLoop() {
@@ -4266,26 +4306,49 @@ document.addEventListener('DOMContentLoaded', function() {
     }, 4500);
   }
 
+  var hudMetricAnim = { raf: 0, shown: null };
+  function fmtMetricNum(m, n) { return (m.plus && n > 0 ? '+' : '') + yen(n); }
   function applyHudMetric() {
     if (!D.metrics.length) return;
     var m = D.metrics[D.metricIdx % D.metrics.length];
     $('hudMetricLabel').textContent = m.label;
     var v = $('hudMetricValue');
-    v.textContent = m.value;
     v.className = 'hud-metric-value' + (m.neg ? ' neg' : '');
     $('hudMetricSub').textContent = m.sub;
+    if (hudMetricAnim.raf) { cancelAnimationFrame(hudMetricAnim.raf); hudMetricAnim.raf = 0; }
+    if (typeof m.num !== 'number' || reducedMotion) {
+      v.textContent = m.value;
+      if (typeof m.num === 'number') hudMetricAnim.shown = m.num;
+      return;
+    }
+    var from = (hudMetricAnim.shown === null ? m.num : hudMetricAnim.shown);
+    var to = m.num;
+    if (from === to) { v.textContent = m.value; hudMetricAnim.shown = to; return; }
+    var t0 = 0;
+    var step = function(ts) {
+      if (!t0) t0 = ts;
+      var k = Math.min(1, (ts - t0) / 600);
+      var e = 1 - Math.pow(1 - k, 3);
+      var cur = Math.round(from + (to - from) * e);
+      hudMetricAnim.shown = cur;
+      v.textContent = fmtMetricNum(m, cur);
+      if (k < 1) { hudMetricAnim.raf = requestAnimationFrame(step); }
+      else { hudMetricAnim.raf = 0; hudMetricAnim.shown = to; v.textContent = m.value; }
+    };
+    hudMetricAnim.raf = requestAnimationFrame(step);
   }
 
   function renderHomeSheet() {
     var d = computeHomeData();
+    D.netNeg = d.net < 0;
     var wd = ['日', '月', '火', '水', '木', '金', '土'][d.now.getDay()];
     $('hudDate').textContent = d.now.getFullYear() + '.' + ('0' + (d.now.getMonth() + 1)).slice(-2) + '.' + ('0' + d.now.getDate()).slice(-2) + ' ' + wd;
     $('hudNet').textContent = navigator.onLine ? 'ONLINE' : 'OFFLINE';
     D.metrics = [
-      { label: '資産総額', value: yen(d.netAssets), sub: '支払予定 −' + yen(d.monthOut) + ' 差引後（手元 ' + yen(d.liquid) + ' ＋ NISA ' + yen(d.nisaTot) + '）', neg: d.netAssets < 0 },
-      { label: '今月の収支', value: (d.net > 0 ? '+' : '') + yen(d.net), sub: '収入 ' + yen(d.monthIn) + ' ／ 支出 ' + yen(d.monthOut), neg: d.net < 0 },
-      { label: 'NISA評価額', value: yen(d.nisaTot), sub: '毎月積立 ' + yen(d.nisaMo), neg: false },
-      { label: '奨学金残高', value: yen(d.schBal), sub: d.schCount > 0 ? '残り ' + d.schCount + ' 回' : '—', neg: false }
+      { label: '資産総額', value: yen(d.netAssets), sub: '支払予定 −' + yen(d.monthOut) + ' 差引後（手元 ' + yen(d.liquid) + ' ＋ NISA ' + yen(d.nisaTot) + '）', neg: d.netAssets < 0, num: d.netAssets },
+      { label: '今月の収支', value: (d.net > 0 ? '+' : '') + yen(d.net), sub: '収入 ' + yen(d.monthIn) + ' ／ 支出 ' + yen(d.monthOut), neg: d.net < 0, num: d.net, plus: true },
+      { label: 'NISA評価額', value: yen(d.nisaTot), sub: '毎月積立 ' + yen(d.nisaMo), neg: false, num: d.nisaTot },
+      { label: '奨学金残高', value: yen(d.schBal), sub: d.schCount > 0 ? '残り ' + d.schCount + ' 回' : '—', neg: false, num: d.schBal }
     ];
     if (D.metricIdx >= D.metrics.length) D.metricIdx = 0;
     applyHudMetric();
@@ -4753,6 +4816,7 @@ doTapCycle();
   document.querySelectorAll('.tab-btn').forEach(function(btn) {
     btn.onclick = function() {
       var k = btn.getAttribute('data-p');
+      fxWarpPage();
       closeOrbPanel();
       applySheetAccent(k);
       $('pageTitle').textContent = TITLES[k];
@@ -4931,6 +4995,18 @@ doTapCycle();
     if (c.sprites && c.parts) {
       for (var i = 0; i < c.count; i++) {
         var p = c.parts[i];
+        // v22: ポインタがコア内にある時だけ、近くの粒子へ弱い引力を加える
+        if (c.ptrIn && !reducedMotion) {
+          var pdx = c.ptrX - p.x, pdy = c.ptrY - p.y;
+          var pd2 = pdx * pdx + pdy * pdy, pRad = c.R * 1.4;
+          if (pd2 < pRad * pRad) {
+            var pd = Math.sqrt(pd2) || 1;
+            if (pd > 12) { var pa = 3.4 * dts / pd; p.vx += pdx * pa; p.vy += pdy * pa; }
+            else { p.vx *= 0.93; p.vy *= 0.93; }
+            var pv = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
+            if (pv > 2.8) { p.vx = p.vx / pv * 2.8; p.vy = p.vy / pv * 2.8; }
+          }
+        }
         p.x += p.vx * dts; p.y += p.vy * dts;
         if (p.x < -6) p.x = c.side + 6; else if (p.x > c.side + 6) p.x = -6;
         if (p.y < -6) p.y = c.side + 6; else if (p.y > c.side + 6) p.y = -6;
@@ -4990,7 +5066,7 @@ doTapCycle();
     var rgbParts = rgbStr.split(',').map(function(x) { return parseInt(x, 10); });
     var c = {
       key: key, wrap: wrap, canvas: cv, ctx: null, side: 0, cx: 0, cy: 0, R: 0,
-      rot: Math.random() * 6.28, aSeg: 0, aDash: 0, aOrb: 0, aTick: 0, pulse: 0,
+      rot: Math.random() * 6.28, aSeg: 0, aDash: 0, aOrb: 0, aTick: 0, pulse: 0, ptrX: 0, ptrY: 0, ptrIn: false,
       parts: null, count: 0, sprites: null, accentSprite: null, rgb: rgbStr
     };
     try { c.ctx = cv.getContext ? cv.getContext('2d') : null; } catch (e) { c.ctx = null; }
@@ -5008,6 +5084,19 @@ doTapCycle();
     var dn = null, dnSuppressClickUntil = 0;
     wrap.addEventListener('pointerdown', function(e) { dn = { x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, t: Date.now() }; });
     wrap.addEventListener('pointermove', function(e) { if (dn) { dn.lx = e.clientX; dn.ly = e.clientY; } });
+    // v22: 触れる粒子用にポインタ位置をコア座標で保持（購読のみ・操作は妨げない）
+    function trackCorePtr(e) {
+      var r = wrap.getBoundingClientRect();
+      if (!r.width || !c.side) return;
+      c.ptrX = (e.clientX - r.left) / r.width * c.side;
+      c.ptrY = (e.clientY - r.top) / r.height * c.side;
+      c.ptrIn = true;
+    }
+    wrap.addEventListener('pointermove', trackCorePtr);
+    wrap.addEventListener('pointerdown', trackCorePtr);
+    wrap.addEventListener('pointerleave', function() { c.ptrIn = false; });
+    wrap.addEventListener('pointerup', function() { c.ptrIn = false; });
+    wrap.addEventListener('pointercancel', function() { c.ptrIn = false; });
     function dnEnd(e) {
       if (!dn) return;
       var st = dn; dn = null;
@@ -5287,6 +5376,35 @@ doTapCycle();
     syncBand: dpSyncBand, syncWave: dpSyncWave,
     playBoot: playBootSequence, refresh: dpRefreshReadouts
   };
+
+  // ==========================================
+  // v22: タブ切替ワープ＋スキャン光／ホーム球の指追従スポット
+  // ==========================================
+  var warpFxTimer = 0;
+  function fxWarpPage() {
+    if (reducedMotion) return;
+    var mainEl = document.querySelector('main');
+    if (mainEl) { mainEl.classList.remove('warping'); void mainEl.offsetWidth; mainEl.classList.add('warping'); }
+    var fx = $('scanFx');
+    if (fx) { fx.classList.remove('run'); void fx.offsetWidth; fx.classList.add('run'); }
+    if (warpFxTimer) clearTimeout(warpFxTimer);
+    warpFxTimer = setTimeout(function() {
+      if (mainEl) mainEl.classList.remove('warping');
+      if (fx) fx.classList.remove('run');
+    }, 520);
+  }
+  (function bindHudSpot() {
+    var wrap = $('hudCoreWrap');
+    if (!wrap) return;
+    wrap.addEventListener('pointermove', function(e) {
+      var r = wrap.getBoundingClientRect();
+      if (!r.width) return;
+      wrap.style.setProperty('--mx', ((e.clientX - r.left) / r.width * 100).toFixed(1) + '%');
+      wrap.style.setProperty('--my', ((e.clientY - r.top) / r.height * 100).toFixed(1) + '%');
+      wrap.classList.add('ptr-on');
+    });
+    wrap.addEventListener('pointerleave', function() { wrap.classList.remove('ptr-on'); });
+  })();
 
   renderAll();
   applySheetAccent('home');
