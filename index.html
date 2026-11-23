@@ -1191,7 +1191,7 @@ main.warping { animation: pageWarp 0.35s ease-out; }
 <!-- ロック画面（回転ジェスチャー／パターン） -->
 <div class="lock-overlay" id="lockOverlay">
   <canvas id="particleCanvas"></canvas>
-  <div class="lock-brand"><div class="lock-brand-title">K A K E I　S Y S T E M</div><div class="lock-brand-clock" id="lockClock">--:--</div></div>
+  <div class="lock-brand"><div class="lock-brand-title">K A K E I　S Y S T E M</div></div>
   <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#60A5FA" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
   <div class="lock-title" id="lockTitle">パターンを入力</div>
   <div class="lock-sub" id="lockSub">指でなぞってロックを解除</div>
@@ -1246,20 +1246,6 @@ main.warping { animation: pageWarp 0.35s ease-out; }
   <div class="header-left">
     <h1 id="pageTitle">ホーム</h1>
     <span class="net-pill" id="netStatusPill">オンライン</span>
-  </div>
-  <div class="header-right">
-    <div class="hud-clockbox">
-      <span class="hud-clock" id="hudClock">--:--</span>
-      <span class="hud-gauge" id="monthGauge"><span class="hud-gauge-pct" id="monthGaugePct">0%</span></span>
-    </div>
-    <div style="display:flex;gap:8px">
-    <button type="button" class="icon-btn" id="manualLockBtn" aria-label="ロック">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-    </button>
-    <button type="button" class="icon-btn" id="themeBtn" aria-label="テーマ切替">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-    </button>
-    </div>
   </div>
 </header>
 
@@ -3152,11 +3138,6 @@ document.addEventListener('DOMContentLoaded', function() {
   function dateStr(d) { return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
   function jpDate(iso) { if (!iso) return '未設定'; var p = iso.split('-'); return Number(p[1]) + '/' + Number(p[2]); }
 
-  $('manualLockBtn').onclick = function() {
-    if (hasTap()) openTapUnlock(true);
-    else if (hasSpin() && pCtx) openSpinUnlock(true);
-    else openLockScreen(hasPattern() ? 'unlock' : 'setup1', !hasPattern());
-  };
   $('changePatternBtn').onclick = function() { openLockScreen('setup1', true); };
   $('changeTapBtn').onclick = function() { openTapEnroll(true); };
   $('deleteTapBtn').onclick = function() {
@@ -3178,13 +3159,9 @@ document.addEventListener('DOMContentLoaded', function() {
   };
   updateLockSettingsUI();
 
-  var savedTheme = localStorage.getItem(THEME_KEY);
-  if (savedTheme) document.documentElement.setAttribute('data-theme', savedTheme);
-  $('themeBtn').onclick = function() {
-    var next = document.documentElement.getAttribute('data-theme') === 'dim' ? 'dark' : 'dim';
-    document.documentElement.setAttribute('data-theme', next);
-    localStorage.setItem(THEME_KEY, next);
-  };
+  // v23: ナイトモード（減光）は廃止。本人の希望でボタンごと削除し、保存済みテーマも解除する
+  try { localStorage.removeItem(THEME_KEY); } catch (e) {}
+  document.documentElement.removeAttribute('data-theme');
 
   var NOW = new Date();
   var curKey = ymKey(NOW.getFullYear(), NOW.getMonth());
@@ -5229,23 +5206,6 @@ doTapCycle();
   var DP = { bootPlayed: false, bandMsgs: [], bandIdx: 0 };
 
   function dpPad(n) { return ('0' + n).slice(-2); }
-  function dpMonthProgress(now) {
-    var dim = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-    return Math.round(now.getDate() / dim * 100);
-  }
-  function dpTickClock() {
-    var now = new Date();
-    var t = dpPad(now.getHours()) + ':' + dpPad(now.getMinutes());
-    var c1 = $('hudClock'); if (c1) c1.textContent = t;
-    var c2 = $('lockClock'); if (c2) c2.textContent = t;
-    var pct = dpMonthProgress(now);
-    var g = $('monthGauge'), gp = $('monthGaugePct');
-    if (g) g.style.background = 'conic-gradient(var(--accent) ' + pct + '%, rgba(255,255,255,0.10) ' + pct + '%)';
-    if (gp) gp.textContent = pct + '%';
-  }
-  setInterval(dpTickClock, 1000);
-  dpTickClock();
-
   // セクション見出しへ共有クラスを付与（全シート共通のHUD化）
   document.querySelectorAll('.card-title').forEach(function(t) { t.classList.add('hud-sec'); });
   document.querySelectorAll('details.acc summary').forEach(function(t) { t.classList.add('hud-sec'); });
@@ -5372,7 +5332,6 @@ doTapCycle();
 
   window.__designPack = {
     played: function() { return DP.bootPlayed; },
-    monthProgress: dpMonthProgress,
     syncBand: dpSyncBand, syncWave: dpSyncWave,
     playBoot: playBootSequence, refresh: dpRefreshReadouts
   };
